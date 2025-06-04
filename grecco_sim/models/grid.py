@@ -1,0 +1,278 @@
+import functools
+import logging
+import warnings
+
+import numpy as np
+import pandas as pd
+import pypsa
+
+from grecco_sim.util import configs, network_io, build
+logging.getLogger("pypsa").setLevel(logging.WARNING)
+
+
+class Grid:
+    def __init__(self, simulation_config: configs.SimulationConfiguration):
+
+        self.simulation_config = simulation_config
+        self.dt_h = simulation_config.dt_h
+        self.time_index = simulation_config.time_index
+
+        # ToDo: Should be read from input data.
+        self.trafo_p_lim: float = 8.  # Trafo load limit in kW
+        self.feeder_p_lim: float = 4.0  # Feeder load limit in kW
+
+        self.n = pypsa.Network()
+        
+        print("Importing pypsa.Network ...")
+        
+        with warnings.catch_warnings(action="ignore"):
+            p = simulation_config.grid_data_path
+            self.n.import_from_csv_folder(p)
+
+        self.n.set_snapshots(snapshots=self.time_index.tz_localize(None))
+        
+        print("... Done.")
+
+        system_buses = network_io.get_system_buses(self.n)
+        self.sys_ids = [build.sys_id(b) for b in system_buses]
+
+        params, p_set = network_io.get_baseload(self.n)
+        # Rename data to carry system names.
+        name_dict = build.id_mapping(params, unit="baseload")
+        self.baseload_params = params.rename(index=name_dict)
+        self.p_baseload_t = p_set.rename(columns=name_dict)
+
+        if simulation_config.use_pv:
+            params, p_set = network_io.get_pv(self.n)
+            name_dict = build.id_mapping(params, unit="pv")
+            self.pv_params = params.rename(index=name_dict)
+            self.p_pv_t = p_set.rename(columns=name_dict)
+
+        if simulation_config.use_batteries:
+            params, p_set, soc = network_io.get_bat(self.n)
+            name_dict = build.id_mapping(params, unit="bat")
+            self.bat_params = params.rename(index=name_dict)
+            # self.p_bat_t = p_set.rename(columns=name_dict)
+            # self.soc_bat_t = soc.rename(columns=name_dict)
+
+        if simulation_config.use_heatpumps:
+            params, p_set = network_io.get_hp(self.n)
+            name_dict = build.id_mapping(params, unit="hp")
+            self.hp_params = params.rename(index=name_dict)
+            # Note that p_hp_t is not used by simulation.
+            # self.p_hp_t = p_set.rename(columns=name_dict)
+            
+        if simulation_config.use_ev:
+            params, bat_ts, charge_ts = network_io.get_ev(
+                self.n,
+                simulation_config)
+            self.ev_params = params
+            raise NotImplementedError
+
+        self.units_at = {sys_id: self._units_at(sys_id)
+                         for sys_id in self.sys_ids}
+
+        self.feeders = self.determine_feeders()
+
+    @functools.cached_property
+    def unit_dict(self) -> dict:
+        """ A dict with all units for look up operations. Key is unit type. """
+
+        # Default values are empty lists.
+        units = {unit: [] for unit in ["baseload", "pv", "bat", "hp", "ev"]}
+
+        units["baseload"] = self.baseload_params.index.to_list()
+
+        if self.simulation_config.use_pv:
+            units["pv"] = self.pv_params.index.to_list()
+
+        if self.simulation_config.use_batteries:
+            units["bat"] = self.bat_params.index.to_list()
+
+        if self.simulation_config.use_heatpumps:
+            units["hp"] = self.hp_params.index.to_list()
+
+        if self.simulation_config.use_ev:
+            units["ev"] = self.ev_params.index.to_list()
+
+        return units
+
+    def _units_at(self, sys_id: str) -> list[str]:
+        """ Return the available units for a given system. """
+
+        units = []
+
+        for unit in ["baseload", "pv", "bat", "hp", "ev"]:
+            if f"{sys_id}_{unit}" in self.unit_dict[unit]:
+                units.append(unit)
+
+        return units
+
+    def determine_feeders(self) -> dict[str, int]:
+        """ A feeeder is defined as subtree rooted in main bus bar (root bus).
+
+        Returns:
+            dict[str, int]: Map bus or line to feeder index. """
+
+        feeder_map = {}
+
+        # Copy network to avoid side effects.
+        n = self.n.copy()
+
+        # Remove slack and main bus.
+        if len(n.transformers) != 1:
+            raise ValueError("Multiple transformers not supported.")
+
+        slack = n.transformers.iloc[0]["bus0"]
+        root_bus = n.transformers.iloc[0]["bus1"]
+
+        n.remove("Bus", slack)
+        n.remove("Bus", root_bus)
+        n.remove("Transformer", n.transformers.index[0])
+
+        # Root segments have to be removed for topology determination.
+        # Their feeder is determined later by the second bus.
+        root_segments = []
+
+        for line_idx, line in n.lines.iterrows():
+            if line["bus0"] == root_bus:
+                root_segments.append((line_idx, line["bus1"]))
+                n.remove("Line", line_idx)
+            if line["bus1"] == root_bus:
+                root_segments.append((line_idx, line["bus0"]))
+                n.remove("Line", line_idx)
+
+        n.determine_network_topology()
+
+        for bus_idx, bus_data in n.buses.iterrows():
+            feeder_map[bus_idx] = int(bus_data["sub_network"])
+            
+        for line_idx, line_data in n.lines.iterrows():
+            feeder_map[line_idx] = int(line_data["sub_network"])
+
+        for line_idx, bus in root_segments:
+            feeder_map[line_idx] = feeder_map[bus]
+
+        return feeder_map
+
+    @staticmethod
+    def build_sys_id(load_index: int, bus_name: str) -> str:
+        """ Unique identifier for energy management systems.
+
+        Args:
+            load_index: Index of baseload associated with EMS.
+            bus_name: Name of bus the EMS is attached to.
+
+        Returns:
+            str: Unique system identifier. """
+
+        return f"bus_{bus_name}_load_{load_index}"
+
+    def get_system_ts_dict(self, sys_id: str) -> dict:
+        """ Return the timeseries data for a single system as dict.
+
+        Keys are: {sys_id}_{unit}_{attr}, i.e. sys_at_bus_3_pv_p. """
+
+        data = dict()
+
+        unit_id = f"{sys_id}_baseload"
+        data[f"{unit_id}_p"] = self.p_baseload_t.loc[:, unit_id]
+
+        if self.simulation_config.use_pv:
+            unit_id = f"{sys_id}_pv"
+
+            if unit_id in self.p_pv_t.columns:  # Not every node has pv.
+                data[f"{unit_id}_p"] = self.p_pv_t.loc[:, unit_id]
+
+        """if self.simulation_config.use_heatpumps:
+            unit_id = f"{sys_id}_hp"
+
+            if unit_id in self.p_hp_t.columns:  # Not every node has hp.
+                data[f"{unit_id}_p"] = self.p_hp_t.loc[:, unit_id]
+
+        if self.simulation_config.use_batteries:  # Not every node has bat.
+            unit_id = f"{sys_id}_bat"
+
+            if unit_id in self.p_bat_t.columns:
+                data[f"{unit_id}_p"] = self.p_bat_t.loc[:, unit_id]
+                data[f"{unit_id}_soc"] = self.soc_bat_t.loc[:, unit_id]
+        """
+        if self.simulation_config.use_ev:
+            raise ValueError("EVs currently under construction.")
+
+        return data
+
+    @property
+    def ptdf_matrix(self) -> np.ndarray:
+        """ Calculate the Power Transfer Distribution Factor matrix.
+
+        Given a bus and a line the PTD-factor describes how much a change in
+        load at the bus would affect the load at the line.
+
+        Returns:
+            np.ndarray: PTDF-matrix where rows correspond to lines and columns
+             correspond to buses.
+
+        Raises:
+            NotImplementedError: Since PTDFs in pypsa are calculated on
+                sub_network level, we assume whole network is connected.
+        """
+
+        self.n.determine_network_topology()
+
+        if len(self.n.sub_networks) != 1:
+            raise NotImplementedError("Network is assumed to be connected.")
+
+        return self.n.sub_networks["obj"].iloc[0].calculate_PTDF()
+
+    def update_state(self, state: dict[str, dict]):
+        """ Set grid state from simulation node state. """
+
+        p_set_load = dict()
+        p_set_gen = dict()
+
+        time_steps = []
+
+        for load in self.n.loads.index:
+            bus = self.n.loads.loc[load, "bus"]
+            data = state[build.sys_id(bus)]
+
+            time_steps.append(data["t"])
+
+            if "Baseload" in load:
+                p_set_load[load] = data["baseload_p_model"]
+
+            elif "Heat pump" in load:
+                p_set_load[load] = data["hp_p_model"]
+
+            elif "Bat" in load:
+                # ToDo: How to set storages?
+                raise NotImplementedError
+
+            else:
+                raise NotImplementedError(f"Unknown load {load}.")
+
+        for generator in self.n.generators.index:
+
+            # Slack generators are not set as they are dependent variables.
+            if self.n.generators.loc[generator, "control"] == "Slack":
+                continue
+
+            bus = self.n.generators.loc[generator, "bus"]
+            data = state[build.sys_id(bus)]
+
+            if "PV" in generator:
+                p_set_gen[generator] = data["hp_p_model"]
+
+        if len(set(time_steps)) > 1:
+            raise ValueError("Loads are not synchronized.")
+
+        t = time_steps[0]
+
+        p_set_load = pd.DataFrame(p_set_load, index=[self.time_index[t]])
+        self.n.loads_t["p_set"].update(p_set_load)
+
+        p_set_gen = pd.DataFrame(p_set_gen, index=[self.time_index[t]])
+        self.n.generators_t["p_set"].update(p_set_gen)
+
+        self.n.lpf(snapshots=[self.time_index[t].tz_localize(None)])

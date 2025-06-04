@@ -1,0 +1,10 @@
+[tool.pyright]
+include = ["grecco_sim"]
+exclude = ["**/__pycache__"]
+ignore = ["data", "doc", "results", "venv"]
+
+reportArgumentType = "warning"
+reportAssignmentType = "warning"
+reportOptionalMemberAccess = "warning"
+reportAttributeAccessIssue = "warning"
+reportIncompatibleMethodOverride = "warning"
