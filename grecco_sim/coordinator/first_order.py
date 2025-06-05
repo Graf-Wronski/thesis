@@ -147,7 +147,7 @@ class CoordinatorFeederDependentGridFee(CoordinatorDailyGridFee):
         congested_lines = n.lines_t["p0"].copy()
         for col in congested_lines.columns:
             congested_lines[col].values[:] = 0
-        congested_lines[n.lines_t["p0"] < self.sim_grid.feeder_p_lim] = -1.0
+        congested_lines[n.lines_t["p0"] < -self.sim_grid.feeder_p_lim] = -1.0
         congested_lines[n.lines_t["p0"] > self.sim_grid.feeder_p_lim] = 1.0
 
 

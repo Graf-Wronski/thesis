@@ -1,11 +1,9 @@
-import sys, os
-from typing import Any, Optional
+from typing import Any
 
 import numpy as np
 import casadi
 import pandas as pd
 
-from grecco_sim.controller.local_control import LocalControllerBase
 from grecco_sim.controller.multiunit.problem import MultiUnitModel
 
 from grecco_sim.simulator import forecaster

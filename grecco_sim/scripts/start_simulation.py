@@ -23,17 +23,17 @@ def main():
 
     timestamp = datetime.datetime.now().strftime("%y%m%d_%H%M")
 
-    market_config = configs.MarketConfiguration(max_market_iterations=3)
+    market_config = configs.MarketConfiguration(max_market_iterations=2)
 
     optimizer_config = configs.OptimizerConfiguration(
         horizon=20,
-        alpha=1.,  # Grid-fee scales with alpha (and congestion amount).
-        solver_name="gurobi",
+        alpha=3.,  # Grid-fee scales with alpha (and congestion amount).
+        solver_name="osqp",
         forecast_type="perfect",
         slack_penalty_thermal=1000.0)
 
     simulation_config = configs.SimulationConfiguration(
-        n_time_steps=4 * 24,
+        n_time_steps=96,
         step_size=datetime.timedelta(minutes=15),
         start_time=datetime.datetime(2016, 10, 12, tzinfo=pytz.utc),
         coordinator_name=coordination_mechanism,
