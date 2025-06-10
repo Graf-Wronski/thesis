@@ -4,7 +4,7 @@ import numpy as np
 
 from grecco_sim.simulator import simulation
 from grecco_sim.util import configs
-from thesis.experiment import result_table
+from grecco_sim.experiment import result_table
 
 
 class Experiment:

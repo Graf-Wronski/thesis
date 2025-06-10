@@ -1,13 +1,12 @@
 import datetime
 import pytz
-from tornado.test.websocket_test import PathArgsHandler
 
 from grecco_sim.util import configs
 from pathlib import Path
 
-from thesis.experiment.experiment import Experiment
+from grecco_sim.experiment.experiment import Experiment
 
-data_root = Path("/home/carl-wanninger/data/")
+data_root = Path("/home/fr/fr_fr/fr_cw434/data")
 grid_path = data_root / "sample_grids" / "lv_minimal_1"
 weather_data_path =  data_root / "weather" / "test" / "pvgis_2016_00.csv"
 

@@ -76,6 +76,8 @@ class Simulation:
     def run(self):
         """ Run central and run local are not synchronized, yet. """
 
+        print(f"Simulation: {self.config.sim_tag}.")
+
         while self.t < self.config.n_time_steps:
 
             start_time = time.time()
