@@ -1,8 +1,8 @@
 import pandas as pd
 import pypsa
 
-from congestion.optimization.optimal_flow.flow_graph import FlowGraph
-from congestion.optimization.optimal_flow.push_relabel import Preflow
+from thesis.optimization.optimal_flow.flow_graph import FlowGraph
+from thesis.optimization.optimal_flow.push_relabel import Preflow
 
 
 def extract_p_set(

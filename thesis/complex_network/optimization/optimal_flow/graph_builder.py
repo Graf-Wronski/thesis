@@ -5,9 +5,9 @@ import pandas as pd
 import pypsa
 from pandas import Timestamp
 
-from congestion.optimization.optimal_flow.flow_graph import FlowGraph
-from congestion.utils.config import PushRelabelConfiguration
-from congestion.utils.network import get_p_capacity_mw, get_inflexible_loads, \
+from thesis.optimization.optimal_flow.flow_graph import FlowGraph
+from thesis.complex_network.utils.config import PushRelabelConfiguration
+from thesis.complex_network.utils.network import get_p_capacity_mw, get_inflexible_loads, \
     get_heatpumps
 
 

@@ -77,6 +77,9 @@ class Plotter:
 
         plt.show()
 
+    def plot_congesiton(self):
+        pass
+
     def model_power(self):
 
         fig, ax = plt.subplots(1)

@@ -5,9 +5,9 @@ from termcolor import colored
 
 import logging
 
-from congestion.data.data_sampler import DataSampler
-from congestion.utils.config import SamplerConfiguration
-from congestion.utils.network import utilization_ratio
+from thesis.data.data_sampler import DataSampler
+from thesis.complex_network.utils.config import SamplerConfiguration
+from thesis.complex_network.utils.network import utilization_ratio
 
 # Mute PyPSA Info:
 logging.getLogger("pypsa").setLevel(logging.WARNING)

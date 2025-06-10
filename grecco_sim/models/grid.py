@@ -30,7 +30,7 @@ class Grid:
             self.n.import_from_csv_folder(p)
 
         self.n.set_snapshots(snapshots=self.time_index.tz_localize(None))
-        
+
         print("... Done.")
 
         system_buses = network_io.get_system_buses(self.n)
@@ -72,7 +72,15 @@ class Grid:
         self.units_at = {sys_id: self._units_at(sys_id)
                          for sys_id in self.sys_ids}
 
-        self.feeders = self.determine_feeders()
+        for load in self.n.loads.index:
+            self.n.loads_t["p_set"][load] = np.zeros(len(self.time_index))
+
+        # Map buses and lines to their respective feeder idx.
+        self.feeder_map = self.determine_feeders()
+
+    @property
+    def feeder(self) -> set[int]:
+        return set(self.feeder_map.values())
 
     @functools.cached_property
     def unit_dict(self) -> dict:
@@ -169,9 +177,11 @@ class Grid:
         return f"bus_{bus_name}_load_{load_index}"
 
     def get_system_ts_dict(self, sys_id: str) -> dict:
-        """ Return the timeseries data for a single system as dict.
+        """ Return (inflexible) timeseries input data.
 
         Keys are: {sys_id}_{unit}_{attr}, i.e. sys_at_bus_3_pv_p. """
+
+        # ToDo: Maybe move weather data here.
 
         data = dict()
 
@@ -184,19 +194,6 @@ class Grid:
             if unit_id in self.p_pv_t.columns:  # Not every node has pv.
                 data[f"{unit_id}_p"] = self.p_pv_t.loc[:, unit_id]
 
-        """if self.simulation_config.use_heatpumps:
-            unit_id = f"{sys_id}_hp"
-
-            if unit_id in self.p_hp_t.columns:  # Not every node has hp.
-                data[f"{unit_id}_p"] = self.p_hp_t.loc[:, unit_id]
-
-        if self.simulation_config.use_batteries:  # Not every node has bat.
-            unit_id = f"{sys_id}_bat"
-
-            if unit_id in self.p_bat_t.columns:
-                data[f"{unit_id}_p"] = self.p_bat_t.loc[:, unit_id]
-                data[f"{unit_id}_soc"] = self.soc_bat_t.loc[:, unit_id]
-        """
         if self.simulation_config.use_ev:
             raise ValueError("EVs currently under construction.")
 
@@ -225,19 +222,16 @@ class Grid:
 
         return self.n.sub_networks["obj"].iloc[0].calculate_PTDF()
 
-    def update_state(self, state: dict[str, dict]):
+    def write_loads(self, state: dict[str, dict], t: int) -> None:
         """ Set grid state from simulation node state. """
 
         p_set_load = dict()
         p_set_gen = dict()
-
-        time_steps = []
+        p_set_bat = dict()
 
         for load in self.n.loads.index:
             bus = self.n.loads.loc[load, "bus"]
             data = state[build.sys_id(bus)]
-
-            time_steps.append(data["t"])
 
             if "Baseload" in load:
                 p_set_load[load] = data["baseload_p_model"]
@@ -245,34 +239,39 @@ class Grid:
             elif "Heat pump" in load:
                 p_set_load[load] = data["hp_p_model"]
 
-            elif "Bat" in load:
-                # ToDo: How to set storages?
-                raise NotImplementedError
-
             else:
                 raise NotImplementedError(f"Unknown load {load}.")
 
-        for generator in self.n.generators.index:
+        if self.simulation_config.use_pv:
+            for generator in self.n.generators.index:
 
-            # Slack generators are not set as they are dependent variables.
-            if self.n.generators.loc[generator, "control"] == "Slack":
-                continue
+                # Slack generators are not set as they are dependent variables.
+                if self.n.generators.loc[generator, "control"] == "Slack":
+                    continue
 
-            bus = self.n.generators.loc[generator, "bus"]
-            data = state[build.sys_id(bus)]
+                bus = self.n.generators.loc[generator, "bus"]
+                data = state[build.sys_id(bus)]
 
-            if "PV" in generator:
-                p_set_gen[generator] = data["hp_p_model"]
+                if "PV" in generator:
+                    p_set_gen[generator] = data["pv_p_model"]
+                else:
+                    msg = f"Unknown generator {generator}."
+                    raise NotImplementedError(msg)
 
-        if len(set(time_steps)) > 1:
-            raise ValueError("Loads are not synchronized.")
+        if self.simulation_config.use_batteries:
+            for storage in self.n.storage_units.index:
+                bus = self.n.storage_units.loc[storage, "bus"]
+                data = state[build.sys_id(bus)]
 
-        t = time_steps[0]
+                p_set_bat[storage] = data["bat_p_model"]
 
-        p_set_load = pd.DataFrame(p_set_load, index=[self.time_index[t]])
+        # PyPSA snapshots are not localized. PyPSA loads are in MW.
+        time_index = [self.time_index[t].tz_localize(None)]
+        p_set_load = pd.DataFrame(p_set_load , index=time_index) / 1000
         self.n.loads_t["p_set"].update(p_set_load)
 
-        p_set_gen = pd.DataFrame(p_set_gen, index=[self.time_index[t]])
+        p_set_gen = pd.DataFrame(p_set_gen, index=time_index) / 1000
         self.n.generators_t["p_set"].update(p_set_gen)
 
-        self.n.lpf(snapshots=[self.time_index[t].tz_localize(None)])
+        p_set_bat = pd.DataFrame(p_set_bat, index=time_index) / 1000
+        self.n.storage_units_t["p_set"].update(p_set_bat)

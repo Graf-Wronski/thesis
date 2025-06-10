@@ -4,7 +4,7 @@ import pypsa
 import pandas as pd
 import matplotlib.pyplot as plt
 from pathlib import Path
-from congestion.test_data.four_node_lv_grid import get_four_node_lv_grid
+from thesis.test_data.four_node_lv_grid import get_four_node_lv_grid
 import seaborn as sns
 
 

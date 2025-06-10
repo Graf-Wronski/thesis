@@ -14,6 +14,12 @@ class MarketConfiguration:
     max_market_iterations: int = 1 # Limits exchange between units and
     # coordinator.
 
+    def as_dict(self):
+        as_dict = dict()
+        as_dict['c_supply'] = self.c_supply
+        as_dict['c_feed_in'] = self.c_feed_in
+        as_dict['max_market_iterations'] = self.max_market_iterations
+        return as_dict
 
 @dataclasses.dataclass
 class OptimizerConfiguration:
@@ -33,7 +39,18 @@ class OptimizerConfiguration:
     slack_penalty_thermal: float = 500.  # Penalty for constraint violations.
 
     # Gurobi.
-    gurobi_version: str = "110"  # GrECCo tested on gurobi version 100.
+    gurobi_version: str = "110"  # Tested on gurobi version 110.
+
+    def as_dict(self):
+        as_dict = dict()
+        as_dict['solver_name'] = self.solver_name
+        as_dict['horizon'] = self.horizon
+        as_dict['forecast_type'] = self.forecast_type
+        as_dict['alpha'] = self.alpha
+        as_dict['rho'] = self.rho
+        as_dict['mu'] = self.mu
+        as_dict['slack_penalty_thermal'] = self.slack_penalty_thermal
+        return as_dict
 
     def __post_init__(self):
         """ Set solver specific variables. """
@@ -146,6 +163,34 @@ class SimulationConfiguration:
     @property
     def plot_dir(self) -> Path:
         return self.output_dir / "plots"
+
+    def as_dict(self) -> dict:
+        """ Configuration as dictionary for plotting. """
+
+        as_dict = dict()
+        as_dict["sim_tag"] = self.sim_tag
+
+        as_dict["grid_data_path"] = str(self.grid_data_path)
+        as_dict["weather_data_path"] = str(self.weather_data_path)
+        as_dict["output_dir"] = self.output_dir
+
+        as_dict["n_time_steps"] = self.n_time_steps
+        as_dict["start_time"] = self.start_time.isoformat()
+        as_dict["step_size"] = self.step_size
+
+        as_dict["coordinator_name"] = self.coordinator_name
+
+        as_dict["use_pv"] = self.use_pv
+        as_dict["use_heatpumps"] = self.use_heatpumps
+        as_dict["use_batteries"] = self.use_batteries
+        as_dict["use_ev"] = self.use_ev
+        as_dict["ev_capacity_data_path"] = self.ev_capacity_data_path
+
+        # Update configuration dictionary with sub configurations.
+        as_dict.update(**self.market_config.as_dict())
+        as_dict.update(**self.optimizer_config.as_dict())
+
+        return as_dict
 
 
 @dataclasses.dataclass

@@ -152,7 +152,7 @@ class CoordinatorFeederDependentGridFee(CoordinatorDailyGridFee):
 
 
         # Map lines to corresponding feeders.
-        mapper = lambda x: self.sim_grid.feeders[x]
+        mapper = lambda x: self.sim_grid.feeder_map[x]
         feeder_congestion = congested_lines.rename(columns=mapper)
 
         # A feeder is congested if any of its segments is congested.
@@ -160,7 +160,7 @@ class CoordinatorFeederDependentGridFee(CoordinatorDailyGridFee):
 
         # Create signals based on feeder congestion.
 
-        lam = {sys_id: feeder_congestion[self.sim_grid.feeders[
+        lam = {sys_id: feeder_congestion[self.sim_grid.feeder_map[
             sys_id.split("_")[-1]]].values for sys_id in schedules}
 
         weight = self.sim_config.optimizer_config.alpha

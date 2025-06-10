@@ -1,5 +1,4 @@
 import time
-
 import pandas as pd
 
 from grecco_sim.simulator import dataloader, result, forecaster
@@ -81,9 +80,9 @@ class Simulation:
 
             start_time = time.time()
 
-            msg = (f"Simulation iteration: {self.t} / "
+            msg = (f"\rSimulation iteration: {self.t} / "
                    f"{self.config.n_time_steps - 1}.")
-            print(msg)
+            print(msg, end="", flush=True)
 
             signals = self.coordinator.get_signals(self.state)
 
@@ -94,10 +93,12 @@ class Simulation:
 
             self.results.log_iteration_time(time.time() - start_time)
 
-            # self.grid.update_state(self.state)
+            self.grid.write_loads(self.state, self.t)
 
             self.step()
 
+        # Powerflow is called once with all values as it is more efficient.
+        self.grid.n.lpf()
 
     def step(self) -> None:
         """ Progress simulation time. """
@@ -109,3 +110,4 @@ class Simulation:
 
         self.t += 1
         self.forecaster.set_time_window(t=self.t, horizon=self.opt_horizon)
+        

@@ -1,12 +1,12 @@
 import numpy as np
 import pytest
 
-from congestion.optimization.optimal_flow.flow_graph import \
+from thesis.optimization.optimal_flow.flow_graph import \
     FlowGraph
-from congestion.optimization.optimal_flow.push_relabel import \
+from thesis.optimization.optimal_flow.push_relabel import \
     PushRelabel
-from congestion.utils.config import PushRelabelConfiguration
-from congestion.utils.network import utilization_ratio
+from thesis.complex_network.utils.config import PushRelabelConfiguration
+from thesis.complex_network.utils.network import utilization_ratio
 
 
 class TestGraphs:

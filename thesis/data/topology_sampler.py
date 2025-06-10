@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import List, Tuple
 
-from congestion.utils.random_tree import RandomTree
+from thesis.utils.random_tree import RandomTree
 
 
 @dataclass

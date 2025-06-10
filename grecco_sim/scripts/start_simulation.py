@@ -27,7 +27,7 @@ def main():
 
     optimizer_config = configs.OptimizerConfiguration(
         horizon=20,
-        alpha=3.,  # Grid-fee scales with alpha (and congestion amount).
+        alpha=1.,  # Grid-fee scales with alpha (and congestion amount).
         solver_name="osqp",
         forecast_type="perfect",
         slack_penalty_thermal=1000.0)

@@ -5,11 +5,11 @@ import time
 import numpy as np
 import pypsa
 
-from congestion.optimization.optimal_flow.graph_builder import GraphBuilder
-from congestion.optimization.optimal_flow.push_relabel import PushRelabel
-from congestion.utils.config import PushRelabelConfiguration
-from congestion.utils.format import Format
-from congestion.utils.results import extract_p_set
+from thesis.optimization.optimal_flow.graph_builder import GraphBuilder
+from thesis.optimization.optimal_flow.push_relabel import PushRelabel
+from thesis.complex_network.utils.config import PushRelabelConfiguration
+from thesis.complex_network.utils.format import Format
+from thesis.complex_network.utils.results import extract_p_set
 
 
 def main(conversion_factor, n_snapshots):
