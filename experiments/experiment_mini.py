@@ -6,7 +6,7 @@ from pathlib import Path
 
 from grecco_sim.experiment.experiment import Experiment
 
-data_root = Path("/home/fr/fr_fr/fr_cw434/data")
+data_root = Path("/home/carl-wanninger/data")
 grid_path = data_root / "sample_grids" / "lv_minimal_1"
 weather_data_path =  data_root / "weather" / "test" / "pvgis_2016_00.csv"
 
@@ -40,8 +40,8 @@ def main():
                     coordinator_name=mechanism,
                     sim_tag=sim_tag,
                     use_pv=True,
-                    use_heatpumps=True,
-                    use_ev=False,
+                    use_heatpumps=False,
+                    use_ev=True,
                     use_batteries=False,
                     output_dir=sim_dir,
                     optimizer_config=optimizer_config,

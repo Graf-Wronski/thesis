@@ -18,11 +18,13 @@ class Experiment:
         self.result_table = result_table.ResultTable(
             path=result_dir / "kpis.pkl",
             overwrite=False)
+        self.ts_data = []
 
     def run(self):
         for sim_config in self.configs:
             sim = simulation.Simulation(sim_config)
             sim.run()
+            self.ts_data.append(sim.grid)
 
             result = dict()
             result.update(self.extract_kpis(sim))

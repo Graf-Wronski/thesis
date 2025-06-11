@@ -5,9 +5,9 @@ import pandas as pd
 import pypsa
 from pandas import Timestamp
 
-from thesis.optimization.optimal_flow.flow_graph import FlowGraph
-from thesis.complex_network.utils.config import PushRelabelConfiguration
-from thesis.complex_network.utils.network import get_p_capacity_mw, get_inflexible_loads, \
+from thesis.graph.graph.flow_graph import FlowGraph
+from thesis.graph.utils.config import PushRelabelConfiguration
+from thesis.graph.utils.network import get_p_capacity_mw, get_inflexible_loads, \
     get_heatpumps
 
 
@@ -21,9 +21,8 @@ class GraphBuilder:
         self.vertices = []
 
     @property
-    def conversion(self) -> Callable[[float], int]:
-        """ This conversion is applied when transforming loads from grid to
-        graph. """
+    def scale_to_int(self) -> Callable[[float], int]:
+        """ Avoid float calculations by scaling up. """
         conversion_factor = 1000 ** self.config.conversion_order
         return lambda x: int(x * conversion_factor)
 
@@ -34,21 +33,19 @@ class GraphBuilder:
         self.vertices = []
 
     def get_grid_id(self, graph_id: int) -> str:
+        """ Each node represents a grid object at a certain time step. """
         return self.graph_id_to_grid_id[graph_id]
 
     def get_graph_id(self, grid_id: str, t: Optional[Timestamp] = None) -> int:
+        """ For each time step, each grid object is represented by a node. """
         if t is not None:
-            try:
-                return self.grid_id_to_graph_id[grid_id][t]
-            except KeyError:
-                raise KeyError
+            return self.grid_id_to_graph_id[grid_id][t]
         else:
             return self.grid_id_to_graph_id[grid_id]
 
     def add_vertex(self, grid_id: str, t: Optional[Timestamp] = None) -> int:
         """ Add a grid object (load, generation or bus) and assign a unique
-        node index. If timestamp is attached, it is used for storing.
-        """
+        node index. If timestamp is attached, it is used for storing. """
 
         graph_idx = len(self.vertices)
         self.vertices.append(graph_idx)
@@ -96,7 +93,7 @@ class GraphBuilder:
         edges_with_capacities = []
         # For graph algorithm we treat capacities as int.
         capacities_mw = get_p_capacity_mw(n)
-        capacities = {x: self.conversion(y) for x,y in capacities_mw.items()}
+        capacities = {x: self.scale_to_int(y) for x,y in capacities_mw.items()}
 
         # Base graph: Extract buses and lines.
         for bus in n.buses.index:
@@ -146,8 +143,8 @@ class GraphBuilder:
                 load_idx = self.add_vertex(load.Index, t)
                 bus_idx = self.get_graph_id(load.bus, t)
                 load_mw = n.loads_t["p_set"].loc[t, load.Index]
-                # ToDo: Talk with Rebecca about units.
-                load_w = int(self.conversion(load_mw))
+
+                load_w = int(self.scale_to_int(load_mw))
                 edges_with_capacities.append((bus_idx, load_idx, load_w))
 
                 # Load size is depicted as capacity to sink.
@@ -160,23 +157,25 @@ class GraphBuilder:
             raise NotImplementedError(msg)
 
         for hp in heatpumps.itertuples():
-            max_w_per_t = self.conversion(hp.pLoad)
+            max_w_per_t = self.scale_to_int(hp.pLoad)
             total_demand = n.loads_t["p_set"].loc[:, hp.Index].apply(
-                self.conversion).sum()
+                self.scale_to_int).sum()
 
             for k, t  in enumerate(n.snapshots):
                 # Each load gets its own node that is attached to resp. bus.
                 hp_idx = self.add_vertex(hp.Index, t)
                 bus_idx = self.get_graph_id(hp.bus, t)
                 load_mw = n.loads_t["p_set"].loc[t, hp.Index]
-                # ToDo: Talk with Rebecca about units.
-                load_w = self.conversion(load_mw)
+
+                load_w = self.scale_to_int(load_mw)
                 # Only max_kw_per_t can be applied per time step.
                 edges_with_capacities.append((bus_idx, hp_idx, max_w_per_t))
                 # The load added at each timestep is accumulated at hp node.
                 if k > 0:
                     t_minus_one = n.snapshots[k - 1]
-                    assert t - t_minus_one == pd.Timedelta(minutes=15)
+                    if not t - t_minus_one == pd.Timedelta(minutes=15):
+                        msg = "Delta t is assumed to be 15 minutes"
+                        raise NotImplementedError(msg)
                     past_hp = self.get_graph_id(hp.Index, t_minus_one)
                     edges_with_capacities.append((past_hp, hp_idx, total_demand))
 
@@ -193,8 +192,7 @@ class GraphBuilder:
             source=source_idx,
             sink=sink_idx,
             capacities=capacities,
-            meta={"grid_id_to_graph_id": self.grid_id_to_graph_id},
-        )
+            meta={"grid_id_to_graph_id": self.grid_id_to_graph_id})
 
         return graph
 

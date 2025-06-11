@@ -1,4 +1,3 @@
-import time
 from typing import List, Optional, Dict
 
 import numpy as np
@@ -32,10 +31,12 @@ class Grid:
         source_idx: int = 0,
         sink_idx: Optional[int] = None):
 
-        msg_quadratic = "Capacities must be a square matrix. "
-        assert capacities.ndim == 2, msg_quadratic
-        assert capacities.shape[0] == capacities.shape[1], msg_quadratic
-        assert (capacities >= 0).all(), "Capacities must be positive. "
+        if not capacities.ndim == 2:
+            raise ValueError("Capacities must be a square matrix.")
+        if not capacities.shape[0] == capacities.shape[1]:
+            raise ValueError("Capacities must be a square matrix.")
+        if not (capacities >= 0).all():
+            raise ValueError("Capacities must be positive.")
 
         self.capacities = capacities
         self.source_idx = source_idx
@@ -44,3 +45,9 @@ class Grid:
     @property
     def num_nodes(self) -> int:
         return self.capacities.shape[0]
+
+
+class MinimalCut:
+    def __init__(self):
+        pass
+

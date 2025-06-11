@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 from pathlib import Path
 
-from thesis.complex_network.utils.format import Format
+from thesis.graph.utils.format import Format
 
 
 @dataclass

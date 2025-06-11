@@ -1,4 +1,5 @@
 from typing import Set
+from thesis.graph.graph import flow_graph
 
 import numpy as np
 
@@ -41,5 +42,7 @@ def is_connected(adj_matrix: np.ndarray, start_node: int = 0) -> bool:
     else:
         return False
 
-
+def flow_to_cut(maximal_flow: flow_graph.FlowGraph) -> flow_graph.MinimalCut:
+    """ Convert a maximal flow to a minimal cut. """
+    return ...
 

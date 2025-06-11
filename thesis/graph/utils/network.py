@@ -5,7 +5,7 @@ import pandas as pd
 import pypsa
 from pypsa import Network
 
-from thesis.complex_network.utils.format import Format
+from thesis.graph.utils.format import Format
 
 
 def get_p_capacity_w(network: Network) -> Dict[str, float]:
@@ -101,10 +101,6 @@ def get_p_capacity_mw(network: Network) -> Dict[str, float]:
 
 def get_loading_mw(network: Network) -> pd.DataFrame:
     """ Loadings (MegaWatt) for all snapshots."""
-
-    # ToDo: Discuss this function with someone.
-
-    # ToDo: Verify that p0 and p1 work as intended.
 
     # ToDo: Check if powerflow was conducted beforehand.
 

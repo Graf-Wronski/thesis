@@ -114,12 +114,9 @@ class SimulationConfiguration:
     use_heatpumps: bool = False  # Heatpumps are exported from PyPSA grid.
     use_batteries: bool = False  # Batteries are exported from PyPSA grid.
     use_ev: bool = False  # EVs need additional capacity data.
-    ev_capacity_data_path: Optional[Path] = None
+    # ev_capacity_data_path: Optional[Path] = None
 
     def __post_init__(self):
-        if self.use_ev:
-            raise ValueError("EVs not implemented, yet.")
-
         # Write output in result directory if no absolute path is given.
         if not self.output_dir.is_absolute():
             p = Path(__file__).parents[2] / "results" / self.output_dir
@@ -139,13 +136,13 @@ class SimulationConfiguration:
             msg = f"Weather data at: {self.weather_data_path}."
             raise FileNotFoundError(msg)
 
-        if self.use_ev:
+        """if self.use_ev:
             if self.ev_capacity_data_path is None:
                 msg = "You want to use bat ev_capacity_path is not given."
                 raise ValueError(msg)
             if not(self.ev_capacity_data_path.exists()):
                 msg = f"EV capacity data at: {self.ev_capacity_data_path}."
-                raise FileNotFoundError(msg)
+                raise FileNotFoundError(msg)"""
 
     @property
     def dt_h(self) -> float:
@@ -184,7 +181,6 @@ class SimulationConfiguration:
         as_dict["use_heatpumps"] = self.use_heatpumps
         as_dict["use_batteries"] = self.use_batteries
         as_dict["use_ev"] = self.use_ev
-        as_dict["ev_capacity_data_path"] = self.ev_capacity_data_path
 
         # Update configuration dictionary with sub configurations.
         as_dict.update(**self.market_config.as_dict())

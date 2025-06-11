@@ -10,9 +10,9 @@ from thesis.optimization.optimal_flow.flow_graph import FlowGraph
 from thesis.optimization.optimal_flow.graph_builder import GraphBuilder
 from thesis.optimization.optimal_flow.push_relabel import PushRelabel, \
     Preflow
-from thesis.complex_network.utils.config import PushRelabelConfiguration
-from thesis.complex_network.utils.format import Format
-from thesis.complex_network.utils.results import extract_p_set
+from thesis.graph.utils.config import PushRelabelConfiguration
+from thesis.graph.utils.format import Format
+from thesis.graph.utils.results import extract_p_set
 
 
 @pytest.fixture

@@ -16,3 +16,7 @@ class PushRelabelConfiguration:
     slack_as_source: bool = True
     conversion_order: int = 2
     max_runtime: float = 1000 # The maximal runtime in seconds.
+
+@dataclass
+class BuilderConfig:
+    push_relabel_config: PushRelabelConfiguration

@@ -12,10 +12,10 @@ from thesis.optimization.optimal_flow.graph_builder import \
     GraphBuilder
 from thesis.optimization.optimal_flow.push_relabel import \
     PushRelabel
-from thesis.complex_network.utils.config import PushRelabelConfiguration
-from thesis.complex_network.utils.network import get_p_capacity, get_loading_mw, \
+from thesis.graph.utils.config import PushRelabelConfiguration
+from thesis.graph.utils.network import get_p_capacity, get_loading_mw, \
     utilization_ratio
-from thesis.complex_network.utils.utils import now
+from thesis.graph.utils.utils import now
 
 # Mute PyPSA Info:
 logging.getLogger("pypsa").setLevel(logging.WARNING)

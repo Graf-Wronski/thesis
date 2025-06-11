@@ -3,8 +3,8 @@ from typing import List
 
 import numpy as np
 
-from thesis.optimization.optimal_flow.flow_graph import FlowGraph
-from thesis.complex_network.utils.config import PushRelabelConfiguration
+from thesis.graph.graph.flow_graph import FlowGraph
+from thesis.graph.utils.config import PushRelabelConfiguration
 
 # ToDo: For large graphs, edge lists should be more efficient than matrices.
 

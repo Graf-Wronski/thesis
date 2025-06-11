@@ -8,7 +8,7 @@ from termcolor import colored
 
 import logging
 
-from thesis.complex_network.utils.network import get_p_capacity, get_loading_mw, \
+from thesis.graph.utils.network import get_p_capacity, get_loading_mw, \
     utilization_ratio
 
 # Mute PyPSA Info:

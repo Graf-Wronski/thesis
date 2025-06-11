@@ -5,8 +5,8 @@ from thesis.optimization.optimal_flow.flow_graph import \
     FlowGraph
 from thesis.optimization.optimal_flow.push_relabel import \
     PushRelabel
-from thesis.complex_network.utils.config import PushRelabelConfiguration
-from thesis.complex_network.utils.network import utilization_ratio
+from thesis.graph.utils.config import PushRelabelConfiguration
+from thesis.graph.utils.network import utilization_ratio
 
 
 class TestGraphs:
