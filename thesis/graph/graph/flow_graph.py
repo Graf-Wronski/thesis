@@ -1,18 +1,19 @@
+import dataclasses
 from typing import List, Optional, Dict
 
 import numpy as np
 
 
-class FlowGraph:
+class FlowNetwork:
     def __init__(
             self,
-            nodes: List[int],
+            vertices: List[int],
             source: int,
             sink: int,
             capacities: np.ndarray,
             meta: Optional[Dict] = None):
 
-        self.nodes = nodes
+        self.vertices = vertices
         self.source = source
         self.sink = sink
         self.edges = (capacities > 0).astype(int)
@@ -20,8 +21,8 @@ class FlowGraph:
         self.meta = meta
 
     @property
-    def num_nodes(self) -> int:
-        return len(self.nodes)
+    def num_vertices(self) -> int:
+        return len(self.vertices)
 
 
 class Grid:
@@ -47,7 +48,20 @@ class Grid:
         return self.capacities.shape[0]
 
 
-class MinimalCut:
-    def __init__(self):
-        pass
+@dataclasses.dataclass
+class Cut:
+    # A cut partitions the graph in two parts.
 
+    # We are only interested in partitions that seperate source and sink.
+    v_source: list[int]
+    v_sink: list[int]
+
+    capacities: np.ndarray
+
+    @property
+    def value(self) -> float:
+        return self.capacities.sum()
+
+    @property
+    def edges(self) -> np.ndarray:
+        return self.capacities > 0.

@@ -26,7 +26,7 @@ def experiment_0() -> Experiment:
             market_config = configs.MarketConfiguration(
                 max_market_iterations=max_market_iterations)
 
-            for horizon in [5]:
+            for horizon in [2]:
 
                 optimizer_config = configs.OptimizerConfiguration(
                     horizon=horizon,
@@ -36,7 +36,7 @@ def experiment_0() -> Experiment:
                     slack_penalty_thermal=1000.0)
 
                 simulation_config = configs.SimulationConfiguration(
-                    n_time_steps=48,
+                    n_time_steps=3,
                     step_size=datetime.timedelta(minutes=15),
                     start_time=datetime.datetime(2016, 10, 12, tzinfo=pytz.utc),
                     coordinator_name=mechanism,

@@ -83,18 +83,15 @@ def get_p_capacity_mw(network: Network) -> Dict[str, float]:
         # Max current in kA (see https://pypsa.readthedocs.io).
         max_current_ka = network.line_types.loc[line.type]["i_nom"]
 
-        # Calculate capacity (in gW).
-        capacity_gw = lam * max_current_ka * voltage_kv
-
-        # Calculate capacity (in mW).
-        capacity_mw = capacity_gw * 1000
+        # Calculate capacity (in mW = kA * kV).
+        capacity_mw = lam * max_current_ka * voltage_kv
 
         # Store capacity in both directions.
         capacities[line.Index] = capacity_mw
 
-    # 2. Transformer capacity.
+    # 2. Transformer capacity (in mW).
     nominal_apparent_power = network.transformers.iloc[0]["s_nom"]
-    transformer_capacity = lam * nominal_apparent_power * 1000  # kW
+    transformer_capacity = lam * nominal_apparent_power
     capacities[network.transformers.index[0]] = transformer_capacity
 
     return capacities

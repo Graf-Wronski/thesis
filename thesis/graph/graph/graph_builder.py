@@ -5,7 +5,7 @@ import pandas as pd
 import pypsa
 from pandas import Timestamp
 
-from thesis.graph.graph.flow_graph import FlowGraph
+from thesis.graph.graph.flow_graph import FlowNetwork
 from thesis.graph.utils.config import PushRelabelConfiguration
 from thesis.graph.utils.network import get_p_capacity_mw, get_inflexible_loads, \
     get_heatpumps
@@ -60,7 +60,7 @@ class GraphBuilder:
             self.graph_id_to_grid_id[graph_idx] = grid_id
         return graph_idx
 
-    def build(self, n: pypsa.Network) -> FlowGraph:
+    def build(self, n: pypsa.Network) -> FlowNetwork:
         """ Build the FlowGraph for a LV-grid.
         # ToDo: Interpretation of single units could be externalized.
 
@@ -69,13 +69,12 @@ class GraphBuilder:
                 snapshots of the grid are regarded.
 
         Returns:
-            FlowGraph: A directed graph where grid capacities as well as
+            FlowNetwork: A directed graph where grid capacities as well as
                 power demand and generation are expressed as edge weights.
                 Meeting all demands while not violating capacities is
                 equivalent to solving the maximal flow on the returned graph
                 (Caveat: A maximal flow might not meet all demands if
-                meeting all demands is not possible).
-        """
+                meeting all demands is not possible). """
 
         # Clear results from last build.
         self._clear()
@@ -93,7 +92,11 @@ class GraphBuilder:
         edges_with_capacities = []
         # For graph algorithm we treat capacities as int.
         capacities_mw = get_p_capacity_mw(n)
-        capacities = {x: self.scale_to_int(y) for x,y in capacities_mw.items()}
+        capacities = {x: self.scale_to_int(y) for x,
+        y in capacities_mw.items()}
+        for x, y in capacities.items():
+            if not "Transformer" in x:
+                capacities[x] = 1000
 
         # Base graph: Extract buses and lines.
         for bus in n.buses.index:
@@ -157,8 +160,8 @@ class GraphBuilder:
             raise NotImplementedError(msg)
 
         for hp in heatpumps.itertuples():
-            max_w_per_t = self.scale_to_int(hp.pLoad)
-            total_demand = n.loads_t["p_set"].loc[:, hp.Index].apply(
+            max_w_per_t = self.scale_to_int(hp.p_set)
+            total_demand = n.loads_t["p"].loc[:, hp.Index].apply(
                 self.scale_to_int).sum()
 
             for k, t  in enumerate(n.snapshots):
@@ -187,8 +190,8 @@ class GraphBuilder:
         for i, j, capacity in edges_with_capacities:
             capacities[i, j] = capacity
 
-        graph = FlowGraph(
-            nodes=self.vertices,
+        graph = FlowNetwork(
+            vertices=self.vertices,
             source=source_idx,
             sink=sink_idx,
             capacities=capacities,

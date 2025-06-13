@@ -102,7 +102,7 @@ def test_push_relabel(test_graph, expected):
     config = PushRelabelConfiguration()
     pr = PushRelabel(config)
     flow = pr.calculate_maximal_flow(test_graph)
-    assert flow.total_flow == expected
+    assert flow.value == expected
 
 @pytest.mark.parametrize("n_nodes", [10 ** x for x in range(5)])
 def test_push_relabel_runtime(n_nodes):
@@ -111,7 +111,7 @@ def test_push_relabel_runtime(n_nodes):
     pr = PushRelabel(config)
     flow = pr.calculate_maximal_flow(test_graph)
     expected = n_nodes - 1
-    assert flow.total_flow == expected
+    assert flow.value == expected
 
 @pytest.mark.parametrize("n_nodes", [10 ** x for x in range(5)])
 def test_push_relabel_runtime_2(n_nodes):
@@ -120,7 +120,7 @@ def test_push_relabel_runtime_2(n_nodes):
     pr = PushRelabel(config)
     flow = pr.calculate_maximal_flow(test_graph)
     expected = np.floor(n_nodes / 2)
-    assert flow.total_flow == expected
+    assert flow.value == expected
 
 
 def test_flow_conservation(maximal_flow):

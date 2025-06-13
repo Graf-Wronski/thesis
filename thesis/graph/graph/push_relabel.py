@@ -3,41 +3,39 @@ from typing import List
 
 import numpy as np
 
-from thesis.graph.graph.flow_graph import FlowGraph
+from thesis.graph.graph.flow_graph import FlowNetwork
 from thesis.graph.utils.config import PushRelabelConfiguration
 
 # ToDo: For large graphs, edge lists should be more efficient than matrices.
-
-
 class Preflow:
-    def __init__(self, graph: FlowGraph, verbose: bool = False):
+    def __init__(self, graph: FlowNetwork, verbose: bool = False):
         self.verbose = verbose
         self.graph = graph
         self.original_capacities = graph.capacities
-        self.height = [0 for _ in range(self.num_nodes)]
-        self.height[self.source] = self.num_nodes
+        self.height = [0 for _ in range(self.num_vertices)]
+        self.height[self.source] = self.num_vertices
 
         # Init load: Capacity of source edges to max. All further loads to 0.
-        self.load = np.zeros((self.num_nodes, self.num_nodes))
+        self.load = np.zeros((self.num_vertices, self.num_vertices))
         self.load[self.source, :] = self.original_capacities[self.source, :]
 
         # Initial excess is load on source edges.
         self.excess = self.load[self.source, :].flatten().copy()
 
-        # Active nodes are nodes with positive excess.
-        self.active_nodes = np.argwhere(self.excess > 0).flatten().tolist()
+        # Active vertices are vertices with positive excess.
+        self.active_vertices = np.argwhere(self.excess > 0).flatten().tolist()
 
         # A valid push is a push to a lower height. Initially there are none.
         self.valid_pushes = np.zeros(
-            (self.num_nodes, self.num_nodes)).astype(int)
+            (self.num_vertices, self.num_vertices)).astype(int)
 
         # Residual capacities: remove initial flow from original capacities.
         self.residual_capacities = self.original_capacities - self.load
 
         # Dictionaries allow us to access edges in constant time.
-        self.edge_val_to_key = {x: [] for x in self.graph.nodes}
-        self.edge_key_to_val = {x: [] for x in self.graph.nodes}
-        for i in range(self.num_nodes):
+        self.edge_val_to_key = {x: [] for x in self.graph.vertices}
+        self.edge_key_to_val = {x: [] for x in self.graph.vertices}
+        for i in range(self.num_vertices):
             for j in range(i + 1):
                 if self.original_capacities[i][j] > 0:
                     self.edge_val_to_key[j].append(i)
@@ -53,6 +51,12 @@ class Preflow:
             self.edge_key_to_val[x].append(self.source)
 
     @property
+    def is_flow(self) -> bool:
+        """ Flow is a preflow where vertices except sink and source have 0
+        excess. """
+        return np.delete(self.excess, [self.sink, self.source]).sum() == 0.
+
+    @property
     def source(self) -> int:
         return self.graph.source
 
@@ -65,70 +69,70 @@ class Preflow:
         return self.load - self.load.T
 
     @property
-    def num_nodes(self) -> int:
-        return self.graph.num_nodes
+    def num_vertices(self) -> int:
+        return self.graph.num_vertices
 
     @property
-    def total_flow(self) -> float:
+    def value(self) -> float:
         """ The total flow is measured as the excess at the sink. """
         return self.excess[self.sink]
 
-    def push_potential(self, node: int, target: int) -> float:
+    def push_potential(self, vertex: int, target: int) -> float:
         maximal_capacity = min(
-            self.residual_capacities[node, target],
-            self.excess[node].item())
+            self.residual_capacities[vertex, target],
+            self.excess[vertex].item())
 
         return maximal_capacity
 
-    def push(self, node: int, target: int, flow_size: float) -> None:
+    def push(self, vertex: int, target: int, flow_size: float) -> None:
         # Determine how much flow can be pushed.
         if flow_size == 0:
             raise ValueError("Trying to push an empty flow.")
 
         if self.verbose:
-            print(f"Pushing {flow_size} from {node} to {target}.")
+            print(f"Pushing {flow_size} from {vertex} to {target}.")
 
         # Push flow.
-        self.excess[node] -= flow_size
+        self.excess[vertex] -= flow_size
         self.excess[target] += flow_size
 
-        self.load[node, target] += flow_size
+        self.load[vertex, target] += flow_size
 
-        self.residual_capacities[node, target] -= flow_size
-        self.residual_capacities[target, node] += flow_size
+        self.residual_capacities[vertex, target] -= flow_size
+        self.residual_capacities[target, vertex] += flow_size
 
         # After pushing a flow, the backwards flow becomes available.
-        if node not in self.edge_key_to_val[target]:
-            self.edge_key_to_val[target].append(node)
-            self.edge_val_to_key[node].append(target)
+        if vertex not in self.edge_key_to_val[target]:
+            self.edge_key_to_val[target].append(vertex)
+            self.edge_val_to_key[vertex].append(target)
 
-        # Adapt active nodes.
-        if self.excess[node] == 0:
-            self.active_nodes.remove(node)
+        # Adapt active vertices.
+        if self.excess[vertex] == 0:
+            self.active_vertices.remove(vertex)
 
         if target not in [self.source, self.sink]:
-            if target not in self.active_nodes:
-                self.active_nodes.append(target)
+            if target not in self.active_vertices:
+                self.active_vertices.append(target)
 
-    def relabel(self, node: int):
-        """ Increase the height of a node. """
-        self.height[node] += 1
-        self.update_valid_pushes(node)
+    def relabel(self, vertex: int):
+        """ Increase the height of a vertex. """
+        self.height[vertex] += 1
+        self.update_valid_pushes(vertex)
 
-    def update_valid_pushes(self, node: int):
+    def update_valid_pushes(self, vertex: int):
         """ Update valid pushes according to capacity and height.
             Only push downstream!"""
 
         # Allow all pushes that now became downstream.
-        for neighbour in self.edge_key_to_val[node]:
-            if self.height[neighbour] < self.height[node]:
-                if self.residual_capacities[node, neighbour] > 0:
-                    self.valid_pushes[node, neighbour] = 1
+        for neighbour in self.edge_key_to_val[vertex]:
+            if self.height[neighbour] < self.height[vertex]:
+                if self.residual_capacities[vertex, neighbour] > 0:
+                    self.valid_pushes[vertex, neighbour] = 1
 
         # Forbid all pushes that are now upstream.
-        for neighbour in self.edge_val_to_key[node]:
-            if self.height[neighbour] <= self.height[node]:
-                self.valid_pushes[neighbour, node] = 0
+        for neighbour in self.edge_val_to_key[vertex]:
+            if self.height[neighbour] <= self.height[vertex]:
+                self.valid_pushes[neighbour, vertex] = 0
 
 
 class PushRelabel:
@@ -137,15 +141,15 @@ class PushRelabel:
         self.start_time = None
 
     @staticmethod
-    def choose_active_node(active_nodes: List[int], heights: List[int]) -> int:
-        """ Choose the highest of several active nodes.
+    def choose_active_vertex(active_vertices: List[int], heights: List[int]) -> int:
+        """ Choose the highest of several active vertices.
             Tie-breaker: lowest index. """
 
-        if len(active_nodes) > 0:
-            heights = [heights[x] for x in active_nodes]
-            return active_nodes[np.argmax(heights).item()]
+        if len(active_vertices) > 0:
+            heights = [heights[x] for x in active_vertices]
+            return active_vertices[np.argmax(heights).item()]
         else:
-            raise RuntimeError('No active nodes.')
+            raise RuntimeError('No active vertices.')
 
     @staticmethod
     def choose_push_target(targets: List[int]):
@@ -155,40 +159,51 @@ class PushRelabel:
     @property
     def current_runtime(self) -> float:
         if self.start_time is None:
-            raise RuntimeError('Current runtime only available after calling'
-                               'calculate_maximal_flow().')
+            msg = ('Current runtime only available after calling '
+                   'calculate_maximal_flow().')
+            raise RuntimeError(msg)
         return time.time() - self.start_time
 
     def iterate_flow(self, flow: Preflow) -> Preflow:
-        node = self.choose_active_node(flow.active_nodes, flow.height)
-        targets = np.argwhere(flow.valid_pushes[node] == 1).flatten().tolist()
+        vertex = self.choose_active_vertex(flow.active_vertices, flow.height)
+        targets = np.argwhere(flow.valid_pushes[vertex] == 1).flatten().tolist()
 
         # Only allow targets where actually flow can be pushed.
-        targets = [t for t in targets if flow.push_potential(node, t) > 0]
+        targets = [t for t in targets if flow.push_potential(vertex, t) > 0]
 
         if len(targets) > 0:
             target = self.choose_push_target(targets)
-            flow_size = flow.push_potential(node, target)
-            flow.push(node, target, flow_size)
+            flow_size = flow.push_potential(vertex, target)
+            flow.push(vertex, target, flow_size)
         else:
-            flow.relabel(node)
-            if flow.height[node] > flow.num_nodes * 2:
-                msg = f"Height of node {node} exceeded limit."
+            flow.relabel(vertex)
+            if flow.height[vertex] > flow.num_vertices * 2:
+                msg = f"Height of vertex {vertex} exceeded limit."
                 raise ValueError(msg)
 
         return flow
 
-    def calculate_maximal_flow(self, graph: FlowGraph) -> Preflow:
+    def calculate_maximal_flow(self, graph: FlowNetwork) -> Preflow:
+        """ In every iteration of push-relabel, a pre-flow is calculated. If
+        this pre-flow is a valid flow, by method it is a maximal flow.
+
+        Args:
+            graph: FlowNetwork of intererst, including information about
+            source, sink and capacities.
+
+        Returns:
+            - Preflow: A maximal flow. """
+
         self.start_time = time.time()
 
-        flow = Preflow(graph, verbose=self.config.verbose)
+        preflow = Preflow(graph, verbose=self.config.verbose)
 
         while True:
-            if len(flow.active_nodes) == 0:
-                return flow
+            if preflow.is_flow:
+                return preflow
 
             if self.current_runtime > self.config.max_runtime:
-                raise RuntimeError("Maximum flow could not be calculated in"
-                                   "time.")
+                msg = "Maximum flow could not be calculated in time."
+                raise RuntimeError(msg)
 
-            flow = self.iterate_flow(flow)
+            preflow = self.iterate_flow(preflow)
