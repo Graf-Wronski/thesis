@@ -1,16 +1,27 @@
-from distutils.command.build_scripts import first_line_re
-
 import numpy as np
 from typing import Dict, Any
 
-import pandas as pd
-
 from grecco_sim.coordinator import coordinator
 from grecco_sim.util import signals, type_defs
-
+from thesis.graph.utils import network
 
 class GridFeeCoordinator(coordinator.Coordinator):
     """Base class for fee-based coordination methods."""
+
+    def __init__(self, grecco_sim: Any):
+        super().__init__(grecco_sim)
+
+    @property
+    def trafo_p_lim(self) -> float:
+
+        trafo = [x for x in self.sim_grid.capacities.keys()
+                 if "transformer" in x.lower()]
+
+        if len(trafo) != 1:
+            msg = "Exactly one transformer is assumed."
+            raise NotImplementedError(msg)
+
+        return self.sim_grid.capacities[trafo[0]]
 
     @property
     def max_market_iterations(self) -> int:
@@ -23,10 +34,6 @@ class GridFeeCoordinator(coordinator.Coordinator):
 
     def has_converged(self, time_index: int) -> bool:
         raise NotImplementedError
-
-    def __init__(self, grecco_sim: Any):
-        super().__init__(grecco_sim)
-        # self.lam: np.ndarray = np.array([])
 
     @staticmethod
     def empty_signal() -> signals.FirstOrderSignal:
@@ -89,8 +96,6 @@ class CoordinatorDailyGridFee(GridFeeCoordinator):
 
         for k in range(1, self.max_market_iterations):
             # ToDo: Implement feeder-specific optimization.
-
-
             fee_signals = self.get_fee_signals(schedules)
 
             if all([s.is_empty for s in fee_signals.values()]):
@@ -116,7 +121,7 @@ class CoordinatorDailyGridFee(GridFeeCoordinator):
         # Weight fee signal with parameter alpha.
         weight = self.sim_config.optimizer_config.alpha
         lam = np.ones(current_grid_power.shape) * weight
-        lam[current_grid_power < self.sim_grid.trafo_p_lim] = 0.
+        lam[current_grid_power < self.trafo_p_lim] = 0.
 
         return {sys_id: signals.FirstOrderSignal(mul_lambda=lam)
                 for sys_id in schedules}

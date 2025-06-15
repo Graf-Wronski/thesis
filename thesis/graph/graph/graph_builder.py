@@ -92,11 +92,8 @@ class GraphBuilder:
         edges_with_capacities = []
         # For graph algorithm we treat capacities as int.
         capacities_mw = get_p_capacity_mw(n)
-        capacities = {x: self.scale_to_int(y) for x,
-        y in capacities_mw.items()}
-        for x, y in capacities.items():
-            if not "Transformer" in x:
-                capacities[x] = 1000
+        capacities = {x: self.scale_to_int(y)
+                      for x,y in capacities_mw.items()}
 
         # Base graph: Extract buses and lines.
         for bus in n.buses.index:

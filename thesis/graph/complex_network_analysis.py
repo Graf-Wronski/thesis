@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 import pypsa
 from tqdm.contrib import itertools
 
@@ -17,6 +18,7 @@ class ComplexNetworkAnalysis:
             builder_config: config.PushRelabelConfiguration):
 
         self.builder = graph_builder.GraphBuilder(builder_config)
+        self.network = network
         self.graph = self.builder.build(network)
         self.push_relabel = PushRelabel(builder_config)
 
@@ -33,10 +35,39 @@ class ComplexNetworkAnalysis:
             msg = "Maximal flow must match minimal cut."
             raise RuntimeError(msg)
 
+        # ToDo: Clean-up (after thesis submission).
         bottleneck = [(self.builder.get_grid_id(x), self.builder.get_grid_id(y))
                       for (x, y) in np.argwhere(min_cut.edges)]
+        units = self.network.transformers.index.union(self.network.lines.index)
+        congestion_table = pd.DataFrame(
+            index=self.network.snapshots,
+            columns=units,
+            data=0)
 
-        print(bottleneck)
+        transmission_gear = pd.concat([
+            self.network.lines,
+            self.network.transformers])
+
+        for start, end in bottleneck:
+
+            bus0, bus1 = start[0], end[0]
+            t0, t1 = start[1], end[1]
+
+            if t0 != t1:
+                raise NotImplementedError
+
+            matches = pd.concat([
+                transmission_gear.query("bus0 == @bus0 and bus1 == @bus1"),
+                transmission_gear.query("bus0 == @bus1 and bus1 == @bus0")])
+
+            if len(matches) != 1:
+                raise NotImplementedError
+
+            match = matches.index[0]
+
+            congestion_table.loc[t0, match] = 1
+
+        return congestion_table
 
     def get_residual_graph(self, flow: Preflow) -> flow_graph.FlowNetwork:
         """ The residual graph for a given flow is obtained by reducing the

@@ -5,6 +5,7 @@ import numpy as np
 from grecco_sim.simulator import simulation
 from grecco_sim.util import configs
 from grecco_sim.experiment import result_table
+from thesis.graph.utils import network
 
 
 class Experiment:
@@ -53,16 +54,16 @@ class Experiment:
         """
 
         # Compare transformer limit to reached transformer loads.
-        trafo_lim = sim.grid.feeder_p_lim
+        capacities = network.get_p_capacity_mw(sim.grid.n)
+        loading = network.get_loading_mw(sim.grid.n)
+        p_trafo_lim = capacities[sim.grid.n.transformers.index[0]]
+        p_trafo_lim *= 1000  # mW -> kW
 
         # Compute p_trafo as the absolute maximum between MV and LV side.
-        p0 = np.abs(sim.grid.n.transformers_t["p0"].values)
-        p1 = np.abs(sim.grid.n.transformers_t["p1"].values)
-        p_trafo = np.max(np.concatenate([p0, p1]), axis=1)
-        p_trafo *= 1000  # mW -> kW
-        trafo_violations = trafo_lim <= p_trafo
+        p_trafo = loading[sim.grid.n.transformers.index[0]]
+        trafo_violations = p_trafo_lim <= p_trafo
         n_trafo_violations = np.sum(trafo_violations)
-        trafo_excess = ((np.abs(p_trafo) - trafo_lim) * trafo_violations).sum()
+        trafo_excess = ((np.abs(p_trafo) - p_trafo_lim) * trafo_violations).sum()
 
         # For each feeder: compare transformer limit to reached feeder loads.
         n_feeder_violations, feeder_excess = 0, 0.

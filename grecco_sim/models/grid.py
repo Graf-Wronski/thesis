@@ -6,7 +6,10 @@ import numpy as np
 import pandas as pd
 import pypsa
 
+
 from grecco_sim.util import configs, network_io, build
+from thesis.graph.utils import network
+
 logging.getLogger("pypsa").setLevel(logging.WARNING)
 
 
@@ -16,10 +19,6 @@ class Grid:
         self.simulation_config = simulation_config
         self.dt_h = simulation_config.dt_h
         self.time_index = simulation_config.time_index
-
-        # ToDo: Should be read from input data.
-        self.trafo_p_lim: float = 8.  # Trafo load limit in kW
-        self.feeder_p_lim: float = 4.0  # Feeder load limit in kW
 
         self.n = pypsa.Network()
         
@@ -77,6 +76,9 @@ class Grid:
 
         # Map buses and lines to their respective feeder idx.
         self.feeder_map = self.determine_feeders()
+
+        # Extract limits for optimization.
+        self.capacities = network.get_p_capacity_mw(self.n)
 
     @property
     def feeder(self) -> set[int]:
