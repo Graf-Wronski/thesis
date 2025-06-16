@@ -16,7 +16,7 @@ def experiment_0() -> Experiment:
     simulation_configs = []
     exp_dir = Path("experiments") / "results" / "ex_00"
 
-    for mechanism in ["transformer_fee"]:
+    for mechanism in ["transformer_fee", "feeder_fee", "central"]:
         sim_tag = f"{mechanism}_test"
         timestamp = datetime.datetime.now().strftime("%y%m%d_%H%M")
         sim_dir =  Path("experiments") / "results" / f"{sim_tag}"
@@ -39,6 +39,52 @@ def experiment_0() -> Experiment:
                     n_time_steps=3,
                     step_size=datetime.timedelta(minutes=15),
                     start_time=datetime.datetime(2016, 10, 12, tzinfo=pytz.utc),
+                    coordinator_name=mechanism,
+                    sim_tag=sim_tag,
+                    use_pv=True,
+                    use_heatpumps=True,
+                    use_ev=False,
+                    use_batteries=False,
+                    output_dir=sim_dir,
+                    optimizer_config=optimizer_config,
+                    grid_data_path=grid_path,
+                    weather_data_path=weather_data_path,
+                    market_config=market_config)
+
+                simulation_configs.append(simulation_config)
+
+    return Experiment(simulation_configs, exp_dir)
+
+
+def experiment_1() -> Experiment:
+
+    simulation_configs = []
+    exp_dir = Path("experiments") / "results" / "ex_00"
+
+    for mechanism in ["transformer_fee", "feeder_fee", "central"]:
+        sim_tag = f"{mechanism}_test"
+        timestamp = datetime.datetime.now().strftime("%y%m%d_%H%M")
+        sim_dir = Path("experiments") / "results" / f"{sim_tag}"
+
+        for max_market_iterations in [2]:
+
+            market_config = configs.MarketConfiguration(
+                max_market_iterations=max_market_iterations)
+
+            for horizon in [5]:
+                optimizer_config = configs.OptimizerConfiguration(
+                    horizon=horizon,
+                    alpha=1.,
+                    # Grid-fee scales with alpha (and congestion amount).
+                    solver_name="osqp",
+                    forecast_type="perfect",
+                    slack_penalty_thermal=1000.0)
+
+                simulation_config = configs.SimulationConfiguration(
+                    n_time_steps=50,
+                    step_size=datetime.timedelta(minutes=15),
+                    start_time=datetime.datetime(2016, 10, 12,
+                                                 tzinfo=pytz.utc),
                     coordinator_name=mechanism,
                     sim_tag=sim_tag,
                     use_pv=True,

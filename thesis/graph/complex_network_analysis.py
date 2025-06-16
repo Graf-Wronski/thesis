@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 import pypsa
-from tqdm.contrib import itertools
+import itertools
 
 from thesis.graph.graph import graph_builder, flow_graph
 from thesis.graph.graph.push_relabel import PushRelabel, Preflow
@@ -49,6 +49,8 @@ class ComplexNetworkAnalysis:
             self.network.transformers])
 
         for start, end in bottleneck:
+            if end == "Sink":
+                continue
 
             bus0, bus1 = start[0], end[0]
             t0, t1 = start[1], end[1]
@@ -56,12 +58,18 @@ class ComplexNetworkAnalysis:
             if t0 != t1:
                 raise NotImplementedError
 
+            # If edge supplies a load: no congestion.
+            if bus1 in self.network.loads.index:
+                continue
+            if bus0 in self.network.loads.index:
+                continue
+
             matches = pd.concat([
                 transmission_gear.query("bus0 == @bus0 and bus1 == @bus1"),
                 transmission_gear.query("bus0 == @bus1 and bus1 == @bus0")])
 
             if len(matches) != 1:
-                raise NotImplementedError
+                raise NotImplementedError()
 
             match = matches.index[0]
 

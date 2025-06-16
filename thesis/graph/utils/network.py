@@ -90,13 +90,16 @@ def get_p_capacity_mw(network: Network) -> Dict[str, float]:
         capacities[line.Index] = capacity_mw
 
     # 2. Transformer capacity (in mW).
-    nominal_apparent_power = network.transformers.iloc[0]["s_nom"]
+    trafo_type = network.transformers.iloc[0]["type"]
+    nominal_apparent_power = network.transformer_types.loc[trafo_type, "s_nom"]
     transformer_capacity = lam * nominal_apparent_power
     capacities[network.transformers.index[0]] = transformer_capacity
 
+    capacities["Feeder 0 - 2"] /= 100
+
     return capacities
 
-def get_loading_mw(network: Network) -> pd.DataFrame:
+def get_p_transmission_mw(network: Network) -> pd.DataFrame:
     """ Loadings (MegaWatt) for all snapshots."""
 
     # ToDo: Check if powerflow was conducted beforehand.
@@ -124,7 +127,7 @@ def get_loading_mw(network: Network) -> pd.DataFrame:
 def utilization_ratio(network: Network) -> pd.DataFrame:
     """ Determines the capacity utilization in %."""
 
-    loads_mw = get_loading_mw(network)
+    loads_mw = get_p_transmission_mw(network)
     capacity_w = pd.Series(get_p_capacity_w(network))
     capacity_mw = capacity_w.apply(Format().w_to_mw)
     utilization = loads_mw.div(capacity_mw)

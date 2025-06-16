@@ -134,44 +134,25 @@ class CoordinatorFeederDependentGridFee(CoordinatorDailyGridFee):
     def get_fee_signals(self, schedules: Dict[str, type_defs.Schedule]) \
             -> Dict[str, signals.FirstOrderSignal]:
 
-        # Use a network copy to avoid side effects.
-        n = self.sim_grid.n.copy()
-        n.set_snapshots([x for x in range(self.horizon)])
-
-        # Replace loads with aggregates (P grid) to simplify power flow.
-        for load in n.loads.index:
-            n.remove("Load", name=load)
-        for sys_id, schedule in schedules.items():
-            bus_id = sys_id.split('_')[-1]
-            identifier = {"name": f"P grid at {bus_id}", "bus": bus_id}
-            n.add(class_name="Load", p_set=schedule.p_grid, **identifier)
-
-        n.lpf(snapshots=[x for x in range(self.horizon)])
-
-        # ToDo: This could refined for different feeder and line values.
-        congested_lines = n.lines_t["p0"].copy()
-        for col in congested_lines.columns:
-            congested_lines[col].values[:] = 0
-        congested_lines[n.lines_t["p0"] < -self.sim_grid.feeder_p_lim] = -1.0
-        congested_lines[n.lines_t["p0"] > self.sim_grid.feeder_p_lim] = 1.0
-
+        # For grid fee, we require signed congestions.
+        _, signed_congestion = self.get_congestion(schedules)
+        signed_line_congestion = signed_congestion[self.sim_grid.n.lines.index]
 
         # Map lines to corresponding feeders.
         mapper = lambda x: self.sim_grid.feeder_map[x]
-        feeder_congestion = congested_lines.rename(columns=mapper)
+        feeder_congestion = signed_line_congestion.rename(columns=mapper)
 
         # A feeder is congested if any of its segments is congested.
         feeder_congestion = feeder_congestion.T.groupby(level=0).sum().T
 
         # Create signals based on feeder congestion.
-
-        lam = {sys_id: feeder_congestion[self.sim_grid.feeder_map[
-            sys_id.split("_")[-1]]].values for sys_id in schedules}
+        lam = dict()
+        for sys_id in schedules:
+            bus_name = sys_id.split("_")[-1]
+            feeder = self.sim_grid.feeder_map[bus_name]
+            lam[sys_id] = feeder_congestion[feeder]
 
         weight = self.sim_config.optimizer_config.alpha
 
-        return {sys_id: signals.FirstOrderSignal(weight * lam[sys_id] *
-                                                 0.25 * np.random.choice(
-            np.arange(
-                                                     10.0)))
+        return {sys_id: signals.FirstOrderSignal(weight * lam[sys_id])
                 for sys_id in schedules}

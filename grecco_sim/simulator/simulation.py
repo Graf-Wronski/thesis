@@ -99,6 +99,7 @@ class Simulation:
 
             self.step()
 
+        print("")
         # Powerflow is called once with all values as it is more efficient.
         self.grid.n.lpf()
 

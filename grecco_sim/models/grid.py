@@ -1,6 +1,7 @@
 import functools
 import logging
 import warnings
+from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -200,6 +201,29 @@ class Grid:
             raise ValueError("EVs currently under construction.")
 
         return data
+
+    def congestion(self, snapshots: Optional[pd.DatetimeIndex] = None) -> pd.DataFrame:
+        """ Amount of congestion for transmission gear at given time steps.
+
+        Args:
+            snapshots:
+
+        Returns:
+            pd.DataFrame: Columns are gear names, rows are time steps. Value is
+                amount of congestion, 0. if capacities are respected.
+        """
+
+
+        n = self.n.copy()
+
+        if snapshots is not None:
+            n.set_snapshots(snapshots=snapshots)
+
+        n.lpf()
+        p_transmission = network.get_p_transmission_mw(n)
+        congestion = (p_transmission.abs() - self.capacities).clip(lower=0)
+
+        return congestion
 
     @property
     def ptdf_matrix(self) -> np.ndarray:

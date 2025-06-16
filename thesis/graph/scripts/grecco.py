@@ -8,7 +8,7 @@ from termcolor import colored
 
 import logging
 
-from thesis.graph.utils.network import get_p_capacity, get_loading_mw, \
+from thesis.graph.utils.network import get_p_capacity, get_p_transmission_mw, \
     utilization_ratio
 
 # Mute PyPSA Info:
@@ -90,7 +90,7 @@ def main():
     )
 
     cap_0 = get_p_capacity(test_grid)
-    load_0 = get_loading_mw(test_grid)
+    load_0 = get_p_transmission_mw(test_grid)
 
     print("Maximal utilization")
     print(utilization_ratio(test_grid)['MV/LV Transformer'].max())
@@ -159,7 +159,7 @@ def main():
           test_grid.transformers_t["p1"].to_numpy().sum())
 
     cap_1 = get_p_capacity(test_grid)
-    load_1 = get_loading_mw(test_grid)
+    load_1 = get_p_transmission_mw(test_grid)
 
     # Check congestion.
     print("Maximal utilization")

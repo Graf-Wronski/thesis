@@ -33,6 +33,7 @@ class Experiment:
 
             self.result_table.add_result(result)
 
+
     @staticmethod
     def extract_kpis(sim: simulation.Simulation) -> dict:
         """ Calculate KPIs that monitor congestion.
@@ -53,45 +54,31 @@ class Experiment:
 
         """
 
-        # Compare transformer limit to reached transformer loads.
+        # Compare limits with transmitted power.
         capacities = network.get_p_capacity_mw(sim.grid.n)
-        loading = network.get_loading_mw(sim.grid.n)
-        p_trafo_lim = capacities[sim.grid.n.transformers.index[0]]
-        p_trafo_lim *= 1000  # mW -> kW
-
-        # Compute p_trafo as the absolute maximum between MV and LV side.
-        p_trafo = loading[sim.grid.n.transformers.index[0]]
-        trafo_violations = p_trafo_lim <= p_trafo
-        n_trafo_violations = np.sum(trafo_violations)
-        trafo_excess = ((np.abs(p_trafo) - p_trafo_lim) * trafo_violations).sum()
+        p_transmission = network.get_p_transmission_mw(sim.grid.n)
+        congestion = (p_transmission.abs() - capacities).clip(lower=0)
+        trafo_name = sim.grid.n.transformers.index[0]
+        n_trafo_violations = (congestion[trafo_name] >= 0).sum()
+        trafo_excess = congestion[trafo_name].sum()
 
         # For each feeder: compare transformer limit to reached feeder loads.
-        n_feeder_violations, feeder_excess = 0, 0.
 
+        n_feeder_violations, feeder_excess = 0, 0.
         lines = sim.grid.n.lines.copy()
         lines["feeder"] = [sim.grid.feeder_map[x] for x in lines.index]
 
         for feeder_idx in sim.grid.feeder:
             feeder_segments = lines[lines["feeder"] == feeder_idx]
-            p0 = np.abs(sim.grid.n.lines_t["p0"][feeder_segments.index].values)
-            p1 = np.abs(sim.grid.n.lines_t["p1"][feeder_segments.index].values)
+            # For each feeder: regard the most congested segment for each t.
+            feeder_congestion = congestion[feeder_segments].max(axis=1)
+            n_feeder_violations += (feeder_congestion >= 0).sum()
+            feeder_excess += feeder_congestion.sum()
 
-            # Max over p0, p1 and all segments.
-            p_segment = np.max([p0, p1], axis=0)
-            p_feeder = np.max(p_segment, axis=1)
-            p_feeder *= 1000  # mW -> kW
-
-            # ToDo: Actual limit should be stored in line s_nom.
-            feeder_lim = sim.grid.feeder_p_lim
-            feeder_violations = feeder_lim <= p_feeder
-            n_feeder_violations += np.sum(feeder_violations)
-            feeder_excess += ((np.abs(p_feeder) - feeder_lim) *
-                              feeder_violations).sum()
-            
         kpis = dict()
         kpis["n_trafo_violations"] = n_trafo_violations
         kpis["n_feeder_violations"] = n_feeder_violations
-        kpis["trafo_excess"] = trafo_excess
-        kpis["feeder_excess"] = feeder_excess
+        kpis["trafo_excess"] = trafo_excess * 1000  # mW -> kW
+        kpis["feeder_excess"] = feeder_excess * 1000  # mW -> kW
 
         return kpis
