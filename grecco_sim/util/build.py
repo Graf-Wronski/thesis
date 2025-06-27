@@ -60,7 +60,9 @@ def coordinator(grecco_sim: Any) -> Any:
 
     name = grecco_sim.config.coordinator_name
 
-    if name == "transformer_fee":
+    if name == "uncoordinated":
+        return first_order.Uncoordinated(grecco_sim)
+    elif name == "transformer_fee":
         return first_order.CoordinatorDailyGridFee(grecco_sim)
     elif name == "feeder_fee":
         return first_order.CoordinatorFeederDependentGridFee(grecco_sim)

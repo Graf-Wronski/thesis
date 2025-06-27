@@ -3,7 +3,7 @@ from typing import Dict, Any
 
 from grecco_sim.coordinator import coordinator
 from grecco_sim.util import signals, type_defs
-from thesis.graph.utils import network
+
 
 class GridFeeCoordinator(coordinator.Coordinator):
     """Base class for fee-based coordination methods."""
@@ -27,7 +27,7 @@ class GridFeeCoordinator(coordinator.Coordinator):
     def max_market_iterations(self) -> int:
         return self.sim_config.market_config.max_market_iterations
 
-    def get_signals( self, sim_state: dict[str, dict]) \
+    def get_signals(self, sim_state: dict[str, dict]) \
             -> dict[str, signals.Signal]:
 
         raise NotImplementedError
@@ -36,9 +36,9 @@ class GridFeeCoordinator(coordinator.Coordinator):
         raise NotImplementedError
 
     @staticmethod
-    def empty_signal() -> signals.FirstOrderSignal:
-        """Return initial signal for first order methods."""
-        return signals.FirstOrderSignal(np.array([]))
+    def default_signal(signal_length: int) -> signals.FirstOrderSignal:
+        """ Default signal is used when no schedules are available. """
+        return signals.FirstOrderSignal(np.zeros(signal_length))
 
     @staticmethod
     def get_grid_fees(
@@ -60,11 +60,6 @@ class CoordinatorDailyGridFee(GridFeeCoordinator):
     """
     Coordinator for a static grid fee. (Maybe even just two steps HT/NT)
     """
-
-    @staticmethod
-    def default_signal(signal_length: int) -> signals.FirstOrderSignal:
-        """ Default signal is used when no schedules are available. """
-        return signals.FirstOrderSignal(np.zeros(signal_length))
 
     def get_signals(self, sim_state: dict[str, dict]) \
             -> dict[str, signals.FirstOrderSignal]:
@@ -156,3 +151,9 @@ class CoordinatorFeederDependentGridFee(CoordinatorDailyGridFee):
 
         return {sys_id: signals.FirstOrderSignal(weight * lam[sys_id])
                 for sys_id in schedules}
+
+
+class Uncoordinated(GridFeeCoordinator):
+    def get_signals(self, sim_state: dict[str, dict]) -> dict[str, signals.Signal]:
+        return {sys_id: self.default_signal(self.horizon)
+                for sys_id in sim_state}

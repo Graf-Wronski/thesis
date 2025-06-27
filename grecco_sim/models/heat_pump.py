@@ -40,10 +40,10 @@ class HeatPumpBase(abc.ABC):
 
 
 
-class HeatPumpOnOff(HeatPumpBase):
+class HeatPump(HeatPumpBase):
     """
-    This model class represents a simple on-off heat pump model. So the heatpump can either be off and deliver no heat/cold 
-    or be on and deliver a constant amount of heat/cold. The heat pump is controlled by a simple on-off controller.
+    This model class represents a simple discrete heat pump model. So the heatpump can either be off and deliver no heat/cold 
+    or be on and deliver a constant amount of heat/cold. The heat pump is controlled by a simple discrete controller.
 
     Parameters: heat_pump_type - select from database.
                 To each type, refrigerant, pressure levels and compressor power limits are defined
@@ -142,7 +142,7 @@ class ThermalSystem(model.Model):
 
         self.heat_pump_type = self.config.heat_pump_type
 
-        # Either on-off or variable speed
+        # Either discrete or variable speed
         self.heat_pump_model = self.config.heat_pump_model
 
         if self.heat_pump_type is not None:  # Assigning a model if known
@@ -155,15 +155,9 @@ class ThermalSystem(model.Model):
                     f"ERROR: Entered model {self.heat_pump_type} is not in "
                     "the database. Select from {heat_pump_info.index.values}")
 
-            # Define the heat pump model
-            if self.heat_pump_model == "on-off":
-                self.heat_pump = HeatPumpOnOff(self.heat_pump_params)
-            else:
-                msg = (f"ERROR: Entered model {self.heat_pump_model} is not "
-                       f"valid. Select from 'on-off' or 'variable-speed'")
-                raise ValueError(msg)
+            self.heat_pump = HeatPump(self.heat_pump_params)
         else:
-            self.heat_pump = HeatPumpOnOff(self.config)  # Initializing onoff when information is limited
+            self.heat_pump = HeatPump(self.config)  # Initializing onoff when information is limited
 
     @property
     def p_model(self) -> np.ndarray:
@@ -178,11 +172,14 @@ class ThermalSystem(model.Model):
 
         hp_control = control["p_hp"]
 
-        if self.heat_pump_model == "on-off":
+        # Discretize heat pump control if desired.
+        if self.heat_pump_model == "discrete":
             if hp_control > self.heat_pump.p_max / 2:
                 hp_control = self.heat_pump.p_max
             else:
                 hp_control = 0.
+        if self.heat_pump_model == "continous":
+            pass
 
         self.control[self.t] = hp_control
         self._evolve(hp_control)

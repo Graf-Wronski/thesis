@@ -22,7 +22,6 @@ class ComplexNetworkAnalysis:
         self.graph = self.builder.build(network)
         self.push_relabel = PushRelabel(builder_config)
 
-
     @staticmethod
     def get_edge_interbetweenness(self) -> None:
         return None
@@ -30,6 +29,10 @@ class ComplexNetworkAnalysis:
     def run(self):
         max_flow = self.push_relabel.calculate_maximal_flow(self.graph)
         min_cut = self.max_flow_to_min_cut(max_flow)
+
+        n = self.builder.reconstruct(max_flow, self.network)
+        print(((max_flow.load[0, :] - max_flow.load[:, 0]) / 1000**2).sum())
+        print(f"Total load of graph method {n.loads_t['p'].sum().sum()}")
 
         if max_flow.value != min_cut.value:
             msg = "Maximal flow must match minimal cut."

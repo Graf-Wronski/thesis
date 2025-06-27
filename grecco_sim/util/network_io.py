@@ -1,6 +1,6 @@
 import difflib
 
-from typing import Tuple, Any
+from typing import Tuple, Any, Optional
 
 import pandas as pd
 import pypsa
@@ -24,10 +24,11 @@ def pypsa_df_to_grecco_df(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def check_unique(data: pd.DataFrame, unit_type: str):
+def check_unique(data: pd.Series, unit_type: Optional[str] = None):
     if not data.is_unique:
         duplicates = data[data.duplicated()]
-        msg = f"Multiple units of type {unit_type} in data: {duplicates}."
+        msg = f"Duplicate units in data: {duplicates}."
+        msg = msg + f"\n Type: {unit_type}" if unit_type else ""
         raise NotImplementedError(msg)
 
 
@@ -62,12 +63,6 @@ def get_bat(network: pypsa.Network) -> Tuple[pd.DataFrame, pd.DataFrame, pd.Data
     bat_params = network.storage_units.query("type == 'h0_battery'")
     check_unique(bat_params["bus"], unit_type='bat')
     bat_params.loc[:, "p_nom"] = pypsa_df_to_grecco_df(bat_params["p_nom"])
-    # bat_p_ts = network.storage_units_t["p_set"].loc[:, bat_params.index]
-    # bat_p_ts = pypsa_ts_to_grecco_ts(bat_p_ts)
-    # bat_soc_ts = network.storage_units_t["state_of_charge"].loc[:,
-    #             bat_params.index]
-    # bat_soc_ts = pypsa_ts_to_grecco_ts(bat_soc_ts)
-    
     return bat_params, pd.DataFrame(), pd.DataFrame()
 
 
@@ -77,8 +72,6 @@ def get_hp(network: pypsa.Network) -> Tuple[pd.DataFrame, pd.DataFrame]:
     hp_params = network.loads.query("carrier == 'heat_pump'")
     check_unique(hp_params["bus"], unit_type='heat pump')
     hp_params.loc[:, "p_set"] = pypsa_df_to_grecco_df(hp_params["p_set"])
-    # hp_p_set = network.loads_t["p_set"].loc[:, hp_params.index]
-    # hp_p_set = pypsa_ts_to_grecco_ts(hp_p_set)
 
     return hp_params, pd.DataFrame()
 

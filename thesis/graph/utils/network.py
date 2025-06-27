@@ -8,11 +8,6 @@ from pypsa import Network
 from thesis.graph.utils.format import Format
 
 
-def get_p_capacity_w(network: Network) -> Dict[str, float]:
-    p_capacity_kw = get_p_capacity_kw(network)
-    return {key: 1000 * val for key,val in p_capacity_kw.items()}
-
-
 def get_p_capacity_mw(network: Network) -> Dict[str, float]:
     """ Capacities (kW) for each line and the (single!) transformer.
 
@@ -93,9 +88,7 @@ def get_p_capacity_mw(network: Network) -> Dict[str, float]:
     trafo_type = network.transformers.iloc[0]["type"]
     nominal_apparent_power = network.transformer_types.loc[trafo_type, "s_nom"]
     transformer_capacity = lam * nominal_apparent_power
-    capacities[network.transformers.index[0]] = transformer_capacity
-
-    capacities["Feeder 0 - 2"] /= 100
+    capacities[network.transformers.index[0]] = transformer_capacity / 50
 
     return capacities
 

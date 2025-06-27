@@ -162,12 +162,13 @@ class CasadiModel:
         slack_penalty = casadi.dot(slack_temperature, penalty_weight)
         self.objective += slack_penalty
 
-        use_heatpump = self.build_state(
-            f"use_heatpump_at_{sys_id}",
-            bounds=(0., 1.),
-            is_discrete=True)
-
-        self.set_value(p_heatpump, use_heatpump * casadi.SX(config.p_max))
+        # Introduce a discrete 'on-off' variable for heat pumps.
+        if config.heat_pump_model == "discrete":
+            use_heatpump = self.build_state(
+                f"use_heatpump_at_{sys_id}",
+                bounds=(0., 1.),
+                is_discrete=True)
+            self.set_value(p_heatpump, use_heatpump * casadi.SX(config.p_max))
 
         temp_init = self.build_parameter(f"temp_init_at_{sys_id}")
         self.set_value(temperature[0], temp_init)
@@ -175,6 +176,7 @@ class CasadiModel:
         # Temperature evolution.
         for k in range(self.horizon):
             # ToDo: Explanations for this formulas.
+            t_in_s = config.dt_h * 60 * 60
 
             absorption = config.absorbance * config.irradiance_area / 1000.
             solar_heat_gain = self.solar_irradiance[k] * absorption
@@ -185,7 +187,6 @@ class CasadiModel:
             hp_heating = p_heatpump[k] * config.cop
 
             heat_gain = solar_heat_gain + thermal_diffusion + hp_heating
-            t_in_s = config.dt_h * 60 * 60
             delta_temperature = (heat_gain / config.thermal_mass) * t_in_s
 
             next_temperature = temperature[k] + delta_temperature

@@ -52,15 +52,11 @@ class Grid:
             params, p_set, soc = network_io.get_bat(self.n)
             name_dict = build.id_mapping(params, unit="bat")
             self.bat_params = params.rename(index=name_dict)
-            # self.p_bat_t = p_set.rename(columns=name_dict)
-            # self.soc_bat_t = soc.rename(columns=name_dict)
 
         if simulation_config.use_heatpumps:
             params, p_set = network_io.get_hp(self.n)
             name_dict = build.id_mapping(params, unit="hp")
             self.hp_params = params.rename(index=name_dict)
-            # Note that p_hp_t is not used by simulation.
-            # self.p_hp_t = p_set.rename(columns=name_dict)
             
         if simulation_config.use_ev:
             params, bat_ts, charge_ts = network_io.get_ev(

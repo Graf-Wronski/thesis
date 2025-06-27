@@ -112,29 +112,3 @@ class SimBenchData:
                     storage["profile"].append(storage_tag)
 
         return UnitProfiles(inflex, heatpump, generation, storage)
-
-
-
-"""
-hh_profile = self.load[self.load["profile"] == hh_tag].sample()
-        node_data.inflex_unit = hh_profile
-        node_data.inflex_p_t = self.load_t.loc[t, f"{hh_tag}_pload"].squeeze()
-        node_data.inflex_q_t = self.load_t.loc[t, f"{hh_tag}_qload"].squeeze()
-            hp_tag = np.random.choice(self.heatpump_tags)
-            hp_profile = self.load[self.load["profile"] == hp_tag].sample()
-            node_data.hp_unit = hp_profile
-            node_data.hp_p_t = self.load_t.loc[t, f"{hp_tag}_pload"].squeeze()
-            node_data.hp_q_t = self.load_t.loc[t, f"{hp_tag}_qload"].squeeze()
-
-node_data.pv_unit = pv_profile
-                node_data.pv_p_t = self.generation_t.loc[t, pv_tag].squeeze()
-                # If storage profile exists: add PV storage.
-                if f"Storage_{pv_tag}_{hh_tag}" in self.storage_tags:
-                    storage_tag = f"Storage_{pv_tag}_{hh_tag}"
-                    storage_profile = self.storage[self.storage["profile"] ==
-                                                   storage_tag].sample()
-                    node_data.storage_p_series = storage_profile
-                    node_data.storage_p_t = self.storage_t.loc[t,
-                    storage_tag].squeeze()
-
-"""

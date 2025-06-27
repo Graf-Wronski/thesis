@@ -93,6 +93,7 @@ class Dataloader:
 
         return configs.HeatPumpConfig(
             name=sys_id,
+            heat_pump_model=self.simulation_config.heat_pump_model,
             market_config=self.simulation_config.market_config,
             dt_h=self.simulation_config.dt_h,
             p_max=heat_pump_size)

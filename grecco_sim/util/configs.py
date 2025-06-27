@@ -116,6 +116,9 @@ class SimulationConfiguration:
     use_ev: bool = False  # EVs need additional capacity data.
     # ev_capacity_data_path: Optional[Path] = None
 
+    # State space for heat pumps: discrete ("on-off") or continious
+    heat_pump_model: str = "discrete"
+
     def __post_init__(self):
         # Write output in result directory if no absolute path is given.
         if not self.output_dir.is_absolute():

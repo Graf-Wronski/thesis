@@ -23,6 +23,7 @@ class Experiment:
 
     def run(self):
         for sim_config in self.configs:
+            print(sim_config.coordinator_name)
             sim = simulation.Simulation(sim_config)
             sim.run()
             self.ts_data.append(sim.grid)

@@ -6,6 +6,7 @@ import pypsa
 from pandas import Timestamp
 
 from thesis.graph.graph.flow_graph import FlowNetwork
+from thesis.graph.graph.push_relabel import Preflow
 from thesis.graph.utils.config import PushRelabelConfiguration
 from thesis.graph.utils.network import get_p_capacity_mw, get_inflexible_loads, \
     get_heatpumps
@@ -21,7 +22,7 @@ class GraphBuilder:
         self.vertices = []
 
     @property
-    def scale_to_int(self) -> Callable[[float], int]:
+    def scale_to_kw(self) -> Callable[[float], int]:
         """ Avoid float calculations by scaling up. """
         conversion_factor = 1000 ** self.config.conversion_order
         return lambda x: int(x * conversion_factor)
@@ -92,7 +93,7 @@ class GraphBuilder:
         edges_with_capacities = []
         # For graph algorithm we treat capacities as int.
         capacities_mw = get_p_capacity_mw(n)
-        capacities = {x: self.scale_to_int(y)
+        capacities = {x: self.scale_to_kw(y)
                       for x,y in capacities_mw.items()}
 
         # Base graph: Extract buses and lines.
@@ -123,10 +124,11 @@ class GraphBuilder:
                 edges_with_capacities.append((node0_idx, node1_idx, capacity))
                 edges_with_capacities.append((node1_idx, node0_idx, capacity))
 
-                # Add edge between source and slack.
+                # Edge between source and slack with arbitrary high capacity.
                 # ToDo: Slack can also serve as sink.
                 if self.config.slack_as_source:
-                    edges_with_capacities.append((source_idx, node0_idx, capacity))
+                    edge_source_slack = (source_idx, node0_idx, 1000*capacity)
+                    edges_with_capacities.append(edge_source_slack)
                 else:
                     msg = "Slack as sink not implemented, yet."
                     raise NotImplementedError(msg)
@@ -144,11 +146,10 @@ class GraphBuilder:
                 bus_idx = self.get_graph_id(load.bus, t)
                 load_mw = n.loads_t["p_set"].loc[t, load.Index]
 
-                load_w = int(self.scale_to_int(load_mw))
-                edges_with_capacities.append((bus_idx, load_idx, load_w))
-
                 # Load size is depicted as capacity to sink.
-                edges_with_capacities.append((load_idx, sink_idx, load_w))
+                load_kw = int(self.scale_to_kw(load_mw))
+                edges_with_capacities.append((bus_idx, load_idx, load_kw))
+                edges_with_capacities.append((load_idx, sink_idx, load_kw))
 
         # Add flexible loads.
         heatpumps = get_heatpumps(n)
@@ -157,9 +158,9 @@ class GraphBuilder:
             raise NotImplementedError(msg)
 
         for hp in heatpumps.itertuples():
-            max_w_per_t = self.scale_to_int(hp.p_set)
+            max_kw_per_t = self.scale_to_kw(hp.p_set)
             total_demand = n.loads_t["p"].loc[:, hp.Index].apply(
-                self.scale_to_int).sum()
+                self.scale_to_kw).sum()
 
             for k, t  in enumerate(n.snapshots):
                 # Each load gets its own node that is attached to resp. bus.
@@ -167,9 +168,8 @@ class GraphBuilder:
                 bus_idx = self.get_graph_id(hp.bus, t)
                 load_mw = n.loads_t["p_set"].loc[t, hp.Index]
 
-                load_w = self.scale_to_int(load_mw)
                 # Only max_kw_per_t can be applied per time step.
-                edges_with_capacities.append((bus_idx, hp_idx, max_w_per_t))
+                edges_with_capacities.append((bus_idx, hp_idx, max_kw_per_t))
                 # The load added at each timestep is accumulated at hp node.
                 if k > 0:
                     t_minus_one = n.snapshots[k - 1]
@@ -196,3 +196,23 @@ class GraphBuilder:
 
         return graph
 
+    def reconstruct(self, flow: Preflow, n: pypsa.Network) -> pypsa.Network:
+        """ Apply loads from flow to network. """
+        network = n.copy()
+        inflexible_loads = get_inflexible_loads(network)
+        heat_pumps = get_heatpumps(network)
+
+        for name, load in pd.concat([inflexible_loads, heat_pumps]).iterrows():
+            def get_load_mw(t: Timestamp) -> float:
+                load_id = self.get_graph_id(name, t)
+                bus_id = self.get_graph_id(load.bus, t)
+                load_w = flow.load[bus_id, load_id] - flow.load[load_id, bus_id]
+                load_mw = load_w / 1000**2
+                return load_mw
+
+            load_ts = [get_load_mw(t) for t in network.snapshots]
+            network.loads_t["p_set"][name] = load_ts
+
+        network.lpf()
+
+        return network
