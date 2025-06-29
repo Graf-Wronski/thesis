@@ -30,7 +30,7 @@ class DataConfiguration:
 
         if self.pv_quota < self.bss_quota:
             msg = ("BSS quota must me smaller than pv quota since every"
-                   "household with bss also has PV.")
+                   "household with BSS also has PV.")
             raise ValueError(msg)
 
         if self.sample_name == "":

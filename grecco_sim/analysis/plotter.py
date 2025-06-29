@@ -48,8 +48,8 @@ class Plotter:
         return len(self.simulation.nodes)
 
     @property
-    def trafo_p_lim(self) -> float:
-        return self.simulation.grid.trafo_p_lim
+    def trafo_p_lim_kw(self) -> float:
+        return self.simulation.grid.trafo_p_lim * 1000 # mW -> kW
 
     @property
     def time_index(self) -> pd.DatetimeIndex:
@@ -104,7 +104,7 @@ class Plotter:
         sns.lineplot(data, ax=ax, x="Time", y="P", hue="type",
                      drawstyle='steps-pre')
 
-        plt.hlines([-self.grid.trafo_p_lim, self.grid.trafo_p_lim],
+        plt.hlines([-self.trafo_p_lim_kw, self.trafo_p_lim_kw],
                    xmin=p_trafo_ts.index[0],
                    xmax=p_trafo_ts.index[-1],
                    color="red",
@@ -239,7 +239,7 @@ class Plotter:
                 ax_signals.set_ylabel("Signal (€)")
                 ax_signals.set_xlabel("Time")
                 ax_signals.set_title(f"Signals {i}.")
-                ax_signals.set_ylim((-3., 3.))
+                ax_signals.set_ylim((-6., 6.))
                 ax_signals.get_xaxis().set_visible(False)
 
                 # Plot cummulative loads.
@@ -265,7 +265,7 @@ class Plotter:
                                 legend=legend, drawstyle='steps-pre')
 
                 ax_cum_loads.set_ylabel("Loads (kWh)")
-                ax_cum_loads.set_ylim((-3 * self.trafo_p_lim, 3 * self.trafo_p_lim))
+                ax_cum_loads.set_ylim((-3 * self.trafo_p_lim_kw, 3 * self.trafo_p_lim_kw))
                 ax_cum_loads.set_title(f"Cumulative loads {i}.")
 
                 if i < n_interactions - 1:

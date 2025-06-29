@@ -29,7 +29,9 @@ class Grid:
             p = simulation_config.grid_data_path
             self.n.import_from_csv_folder(p)
 
-        self.n.set_snapshots(snapshots=self.time_index.tz_localize(None))
+        # ToDo: The setting of snapshots is not very clean.
+        n_index = self.time_index.tz_localize(None)
+        self.n.set_snapshots(snapshots=n_index)
 
         print("... Done.")
 
@@ -80,6 +82,10 @@ class Grid:
     @property
     def feeder(self) -> set[int]:
         return set(self.feeder_map.values())
+
+    @property
+    def trafo_p_lim(self) -> float:
+        return self.capacities[self.n.transformers.index[0]]
 
     @functools.cached_property
     def unit_dict(self) -> dict:
@@ -255,10 +261,10 @@ class Grid:
             bus = self.n.loads.loc[load, "bus"]
             data = state[build.sys_id(bus)]
 
-            if "Baseload" in load:
+            if "baseload" in load.lower():
                 p_set_load[load] = data["baseload_p_model"]
 
-            elif "Heat pump" in load:
+            elif "heat pump" in load.lower() or "heat_pump" in load.lower():
                 p_set_load[load] = data["hp_p_model"]
 
             else:
@@ -274,7 +280,7 @@ class Grid:
                 bus = self.n.generators.loc[generator, "bus"]
                 data = state[build.sys_id(bus)]
 
-                if "PV" in generator:
+                if "pv" in generator.lower():
                     p_set_gen[generator] = data["pv_p_model"]
                 else:
                     msg = f"Unknown generator {generator}."

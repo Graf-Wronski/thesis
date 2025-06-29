@@ -12,12 +12,14 @@ def build_sample(config: DataConfiguration) -> pypsa.Network:
 
     # Load topology. Loads are not used, but we need to know where loads are.
     n = pypsa.Network()
+    n.name = config.sample_name
 
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", category=UserWarning)
         n.import_from_csv_folder(config.topology, skip_time=True)
 
-    n.set_snapshots(snapshots=[x for x in config.date_range])
+    # noinspection PyTypeChecker
+    n.set_snapshots([x for x in config.date_range])
 
     buses = [x for x in n.loads["bus"].unique()]
 
@@ -37,7 +39,7 @@ def build_sample(config: DataConfiguration) -> pypsa.Network:
 
     for _, row in baseload.iterrows():
         bus = row["bus"]
-        p_set = baseload_p_ts[bus]
+        p_set = baseload_p_ts[bus].values # Data as series is missread.
         load_data = {"name": f"baseload at {bus}", "bus": bus, "p_set": p_set}
         # Carrier information is expected by GrECCo.
         n.add(class_name="Load", carrier="baseload", **load_data)
@@ -48,20 +50,23 @@ def build_sample(config: DataConfiguration) -> pypsa.Network:
         # Carrier information is expected by GrECCo.
         n.add(class_name="Load", carrier="heat_pump", **load_data)
 
+    for attr, val in n.loads_t.items():
+        n.loads_t[attr] = val.copy()
+
     for _, row in pv.iterrows():
         bus = row["bus"]
-        p_set = pv_p_ts[bus]
-        load_data = {"name": f"pv at {bus}", "bus": bus, "p_set": p_set}
+        p_set = pv_p_ts[bus].values
+        gen_data = {"name": f"pv at {bus}", "bus": bus, "p_set": p_set}
         # Carrier information is expected by GrECCo.
-        n.add(class_name="Generator", carrier="solar", **load_data)
+        n.add(class_name="Generator", carrier="solar", **gen_data)
+
+    for attr, val in n.generators_t.items():
+        n.generators_t[attr] = val.copy()
 
     for _, row in bss.iterrows():
         bus, p_nom = row["bus"], row["p_nom"]
         storage = {"name": f"Storage at {bus}", "bus": bus, "p_nom": p_nom}
         n.add(class_name="StorageUnit", type="h0_battery", **storage)
-
-    # irradiance = sampler.irrandiance
-    # temperature = sampler.temperature
 
     return n
 
@@ -76,8 +81,18 @@ if __name__ == "__main__":
         bss_quota=0.5,
         hp_quota=0.5,
         seed=17)
-    n = build_sample(data_config)
-    n.name = "Sample Network 0"
-    n.lpf()
+    network = build_sample(data_config)
+    network.name = "Sample Network 0"
+    network.lpf()
 
-    print(n.loads)
+    p = Path(f"/home/carl-wanninger/data/samples/{data_config.ts_data_base}")
+    idx = 0
+
+    # Check for existing versions.
+    while (p / f"{data_config.sample_name}_{idx}").exists():
+        idx += 1
+
+    network.export_to_csv_folder((p / f"{data_config.sample_name}_{idx}"))
+
+
+    print(network.loads)

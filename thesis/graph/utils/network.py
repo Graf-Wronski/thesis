@@ -88,7 +88,7 @@ def get_p_capacity_mw(network: Network) -> Dict[str, float]:
     trafo_type = network.transformers.iloc[0]["type"]
     nominal_apparent_power = network.transformer_types.loc[trafo_type, "s_nom"]
     transformer_capacity = lam * nominal_apparent_power
-    capacities[network.transformers.index[0]] = transformer_capacity / 50
+    capacities[network.transformers.index[0]] = transformer_capacity
 
     return capacities
 

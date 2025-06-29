@@ -2,6 +2,7 @@ import abc
 from typing import Any, Dict, Optional
 from grecco_sim.util import signals
 from grecco_sim.util import type_defs
+from grecco_sim.util.type_defs import Schedule
 
 
 class LocalControllerBase(abc.ABC):
@@ -97,8 +98,10 @@ class LocalControllerNoBat(LocalControllerBase):
     def __init__(self, *args, **kwargs):
         pass
 
-    def get_schedule(self, signal, state):
-        return 0.0 # TODO return empty dict and do this for all local controllers
+    def get_schedule(self, signal, state, forecast):
+        # ToDo for after thesis: Why is residual load a series and not an
+        #  array?
+        return Schedule(p_grid=forecast.residual_load.values)
 
 
 class LocalControllerPassControl(LocalControllerBase):

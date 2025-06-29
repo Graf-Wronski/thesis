@@ -97,8 +97,6 @@ ALLOWED_FLEX_TYPES = ["inflexible", "continuous", "discrete"]
 class Schedule(object):
     """This is the message, a local agents sends to the coordinator."""
 
-    # ToDo: Here would be some documentation/explanations very nice.
-
     p_grid: np.ndarray
     p_bat: Optional[np.ndarray] = None
     p_hp: Optional[np.ndarray] = None

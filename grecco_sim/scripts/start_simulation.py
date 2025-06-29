@@ -6,13 +6,17 @@ from grecco_sim.analysis import plotter
 from grecco_sim.util import configs
 from grecco_sim.simulator import simulation
 
+import pandas as pd
+from warnings import simplefilter
+simplefilter(action="ignore", category=pd.errors.PerformanceWarning)
+
 # data_dir =  pathlib.Path(__file__).parents[2] / "data"
 # grid_path = data_dir / "Opfingen_Profiles_2023" / "data_Rebecca_07_03_2025"
 # weather_data_path = data_dir / "Opfingen_Profiles_2023" / "pvgis_2023_01.csv"
 
 data_root = pathlib.Path("/home/carl-wanninger/data/")
-grid_path = data_root / "sample_grids" / "lv_minimal_1"
-weather_data_path =  data_root / "weather" / "test" / "pvgis_2016_00.csv"
+grid_path = data_root / "samples" / "Opfingen" / "Opfingen_20250629_113452_0"
+weather_data_path =  data_root / "weather" / "2023_dwd.csv"
 
 def main():
 
@@ -26,7 +30,7 @@ def main():
     market_config = configs.MarketConfiguration(max_market_iterations=2)
 
     optimizer_config = configs.OptimizerConfiguration(
-        horizon=20,
+        horizon=10,
         alpha=1.,  # Grid-fee scales with alpha (and congestion amount).
         solver_name="osqp",
         forecast_type="perfect",
@@ -35,7 +39,7 @@ def main():
     simulation_config = configs.SimulationConfiguration(
         n_time_steps=96,
         step_size=datetime.timedelta(minutes=15),
-        start_time=datetime.datetime(2016, 10, 12, tzinfo=pytz.utc),
+        start_time=datetime.datetime(2023, 6, 24, tzinfo=pytz.utc),
         coordinator_name=coordination_mechanism,
         sim_tag=f"{coordination_mechanism}",
         use_pv=True,

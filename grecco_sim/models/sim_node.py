@@ -108,6 +108,8 @@ class SimulationNode:
         ToDo: It is a little unintuitive to create a control in a method
             called 'apply_control'. """
 
+        if not isinstance(schedule.p_grid, np.ndarray):
+            print("")
         self.phys_model.apply_control(schedule.now)
 
     @property
