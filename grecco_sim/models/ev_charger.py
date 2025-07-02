@@ -10,7 +10,7 @@ class ChargingProcess(object):
             self,
             dt_h: float,
             ts_data: pd.DataFrame,
-            config: configs.EVConfig):
+            config: configs.ChargerAndEVConfig):
 
         self.ts_data = ts_data
         self.config = config
@@ -87,7 +87,7 @@ class EVCharger(model.Model):
             sys_id: str,
             horizon: int,
             dt_h: float,
-            config: configs.EVConfig,
+            config: configs.ChargerAndEVConfig,
             ts_data: pd.DataFrame):
 
         super().__init__(sys_id, horizon, dt_h)

@@ -113,8 +113,13 @@ class SimulationConfiguration:
     # Decide which flexibilities are to be used during Simulation.
     use_heatpumps: bool = False  # Heatpumps are exported from PyPSA grid.
     use_batteries: bool = False  # Batteries are exported from PyPSA grid.
-    use_ev: bool = False  # EVs need additional capacity data.
-    # ev_capacity_data_path: Optional[Path] = None
+    use_ev: bool = False
+    # EVs need additional data.
+    f_name = "test_charging_sessions_2023.csv"
+    charging_process_path: Path = Path(
+        f"/home/carl-wanninger/data/ev/{f_name}")
+    ev_capacity_data_path: Optional[Path] = None
+
 
     # State space for heat pumps: discrete ("on-off") or continious
     heat_pump_model: str = "discrete"
@@ -138,14 +143,6 @@ class SimulationConfiguration:
         if not self.weather_data_path.exists():
             msg = f"Weather data at: {self.weather_data_path}."
             raise FileNotFoundError(msg)
-
-        """if self.use_ev:
-            if self.ev_capacity_data_path is None:
-                msg = "You want to use bat ev_capacity_path is not given."
-                raise ValueError(msg)
-            if not(self.ev_capacity_data_path.exists()):
-                msg = f"EV capacity data at: {self.ev_capacity_data_path}."
-                raise FileNotFoundError(msg)"""
 
     @property
     def dt_h(self) -> float:
@@ -279,11 +276,9 @@ class HeatPumpConfig(UnitConfiguration):
 
 
 @dataclasses.dataclass
-class EVConfig(UnitConfiguration):
-    """ Parameter class describing a EV charging station and battery."""
-    # Charging parameters
-    init_soc: float
-    target_soc: float
+class ChargerAndEVConfig(UnitConfiguration):
+    """ Since we match charger to vehicle 1:1, ChargerConfig has EV data. """
+    ev_name: str
 
     # Battery parameters
     capacity: float
@@ -302,6 +297,17 @@ class EVConfig(UnitConfiguration):
 
 
 @dataclasses.dataclass
+class ChargingRequest:
+    """ Request capacity between two timesteps. """
+    start_step: int
+    end_step: int
+    capacity: float
+
+    def __post_init__(self):
+        if self.end_step < self.start_step:
+            raise ValueError("End step must be later than start step.")
+
+@dataclasses.dataclass
 class EMSConfiguration:
     """ Unit configurations associated with an EMS. """
 
@@ -315,11 +321,19 @@ class EMSConfiguration:
     pv: Optional[PVConfig] = None
     bat: Optional[StorageConfig] = None
     hp: Optional[HeatPumpConfig] = None
-    ev: Optional[EVConfig] = None
+    ev_charger: Optional[ChargerAndEVConfig] = None
+    ev_requests: Optional[list[ChargingRequest]] = None
 
     @property
     def is_inflexible(self):
         """ EMS is inflexible if it has no flexible unit configuration. """
         return (self.bat is None and
                 self.hp is None and
-                self.ev is None)
+                self.ev_charger is None)
+
+    def __post_init__(self):
+        if not ((self.ev_charger is None) == (self.ev_requests is None)):
+            msg = (f"EV Charger {self.ev_charger} and f{self.ev_requests}"
+                   f"inconsistent.")
+            raise ValueError(msg)
+

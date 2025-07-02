@@ -37,15 +37,15 @@ def main():
         slack_penalty_thermal=1000.0)
 
     simulation_config = configs.SimulationConfiguration(
-        n_time_steps=96,
+        n_time_steps=16,
         step_size=datetime.timedelta(minutes=15),
         start_time=datetime.datetime(2023, 6, 24, tzinfo=pytz.utc),
         coordinator_name=coordination_mechanism,
         sim_tag=f"{coordination_mechanism}",
-        use_pv=True,
-        use_heatpumps=True,
-        use_ev=False,
-        use_batteries=True,
+        use_pv=False,
+        use_heatpumps=False,
+        use_ev=True,
+        use_batteries=False,
         output_dir=pathlib.Path("default") / timestamp,
         optimizer_config=optimizer_config,
         grid_data_path=grid_path,

@@ -1,9 +1,8 @@
-import difflib
-
 from typing import Tuple, Any, Optional
 
 import pandas as pd
 import pypsa
+
 
 from grecco_sim.util import configs, data_io
 
@@ -79,75 +78,25 @@ def get_hp(network: pypsa.Network) -> Tuple[pd.DataFrame, pd.DataFrame]:
 def get_ev(
         network: pypsa.Network,
         sim_config: configs.SimulationConfiguration) -> (
-        Tuple)[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+        Tuple[pd.DataFrame, pd.DataFrame]):
 
-    ev_params = network.storage_units.query("type != 'h0_battery'")
-    check_unique(ev_params["bus"], unit_type='ev')
-    check_unique(ev_params["Name"], unit_type='ev')
+    # ToDO: In storages, we find charger p_nom. In storages we should find EV
+    #   data, actually.
 
-    ev_params.loc[:]["capacity"] = 60.  # Default value
+    charging_processes = pd.read_csv(sim_config.charging_process_path)
 
-    # EV capacity data can be imported from an extra file.
-    if sim_config.ev_capacity_data_path:
-        p = sim_config.ev_capacity_data_path
-        date_format = "%Y-%m-%d %H:%M:%S"
-        ev_capacity_data = pd.read_csv(p, index_col=0, date_format=date_format)
+    q = "type == 'EMHOMESINGLE' or type == 'EMHOMEMULTI'"
+    charger_params = network.storage_units.query(q)
+    check_unique(charger_params["bus"], unit_type='ev_charger')
 
-        for ev in ev_params.index:
-            try:
-                capacity = ev_capacity_data.loc[ev, "capacity"]
-            # Fallback with close matches.
-            except KeyError:
-                match = difflib.get_close_matches(
-                    word=ev,
-                    possibilities=ev_capacity_data.index,
-                    n=1)
+    # Add EV params.
+    # p = sim_config.ev_capacity_data_path
+    # ev_capacity_data = pd.read_csv(p, index_col=0, date_format=Format().date)
+    # ToDo: Capacity could be added by extra file.
+    charger_params.loc[:, "charger_id"] = charger_params.index
+    charger_params.loc[:, "ev_id"] = charger_params["charger_id"] + "_ev"
+    charger_params.loc[:, "capacity"] = 60.0
+    charger_params.index = "sys_at_bus_" + charger_params["bus"] + "_ev"
 
-                capacity = ev_capacity_data.loc[match, "capacity_kWh"]
-
-            ev_params.loc[ev, "capacity"] = capacity.values
-
-    ev_bat_ts = network.storage_units_t.loc[:, ev_params["Name"]]
-
-    plugged_in = network.storage_units_t.plugged_in[ev_params["Name"]]
-    plugged_in = plugged_in.fillna(0)
-
-    soc_departure_max_percent = network.storage_units_t.soc_departure_max_percent
-    soc_departure_min_percent = network.soc_departure_min_percent
-
-    ev_data_in = pd.concat({'cp': plugged_in,
-                            'soc_max_percent': soc_departure_max_percent,
-                            'soc_min_percent': soc_departure_min_percent},
-                            axis=1)
-
-    # Swap MultiIndex levels
-    ev_data_in.columns = ev_data_in.columns.swaplevel(0, 1)
-    # Sort index to group 'A' and 'B' together
-    ev_charging_ts = ev_data_in.sort_index(axis=1)
-    if ev_charging_ts.index.tz is None:
-        ev_charging_ts = ev_charging_ts.tz_localize("UTC")
-
-    # interpolate soc data blockiwse while plugged in and get parking duration
-    # Compute and add "soc" and "until_departure" for each sys_id
-    # Store computed charging data in a list
-    charging_data_list = []
-
-    # Iterate over each system ID (level 0 column)
-    for sys_id in ev_charging_ts.columns.levels[0]:
-        ev_charging_ts = data_io.get_charging_data(
-            ev_charging_ts[sys_id],
-            sim_config.dt_h)[["initial_soc", "target_soc", "until_departure"]]
-        ev_charging_ts.columns = pd.MultiIndex.from_product(
-            [[sys_id], ev_charging_ts.columns])  # Ensure correct MultiIndex
-        charging_data_list.append(ev_charging_ts)
-
-    ev_charging_ts = pd.concat([ev_charging_ts] + charging_data_list, axis=1)
-
-    ev_charging_ts = pd.MultiIndex.from_tuples(
-        [(left, f"{left}_{right}") for left, right in ev_charging_ts.columns])
-
-
-    raise NotImplementedError("Please check implementation.")
-
-    return ev_params, ev_bat_ts, ev_charging_ts
+    return charger_params, charging_processes
 

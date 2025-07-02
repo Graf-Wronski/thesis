@@ -137,4 +137,4 @@ class SimulationNode:
 
     @property
     def has_ev(self) -> bool:
-        return self.ems_config.ev is not None
+        return self.ems_config.ev_charger is not None

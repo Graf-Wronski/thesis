@@ -56,14 +56,9 @@ class Household(model.Model):
                 ts_data=hp_ts,
                 **model_pars)
 
-        if ems_config.ev:
-            # ToDo: Key might be wrong.
-            key = self.sys_id
-            ev_cols = [f"{key}_cp", f"{key}_initial_soc",
-                       f"{key}_target_soc", f"{key}_until_departure"]
+        if ems_config.ev_charger:
             self.ev = ev_charger.EVCharger(
-                ts_data=input_ts[ev_cols],
-                config=ems_config.ev,
+                config=ems_config.ev_charger,
                 **model_pars)
 
         self.market_config = ems_config.market

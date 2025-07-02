@@ -1,6 +1,7 @@
 from typing import Optional
 
 import pandas as pd
+from fontTools.subset.svg import xpath
 
 from grecco_sim.models import grid
 from grecco_sim.util import configs, data_io
@@ -52,7 +53,7 @@ class Dataloader:
         pv_config = self.get_pv_config(sys_id)
         bat_config = self.get_bat_config(sys_id)
         hp_config = self.get_hp_config(sys_id)
-        ev_config = self.get_ev_config(sys_id)
+        charger_config, ev_requests = self.get_ev_config(sys_id)
 
         return configs.EMSConfiguration(
             sys_id=sys_id,
@@ -63,7 +64,8 @@ class Dataloader:
             pv=pv_config,
             bat=bat_config,
             hp=hp_config,
-            ev=ev_config)
+            ev_charger=charger_config,
+            ev_requests=ev_requests)
 
     def get_baseload_config(self, sys_id) -> configs.BaseloadConfig:
         """ We assume baseload at every system."""
@@ -115,20 +117,38 @@ class Dataloader:
             init_soc=0.1,
             p_inv=p_nom)
 
-    def get_ev_config(self, sys_id) -> Optional[configs.EVConfig]:
+    def get_ev_config(self, sys_id) \
+            -> Optional[tuple[configs.ChargerAndEVConfig,
+                              list[configs.ChargingRequest]]]:
         """ If system is associated with ev data, build config. """
 
         if not "ev" in self.grid.units_at[sys_id]:
-            return None
+            return None, None
 
-        p_nom = self.grid.ev_params.loc[f"{sys_id}_bat", "p_nom"]
-        capacity = self.grid.ev_params.loc[f"{sys_id}_bat", "capacity"]
+        pass
 
-        return configs.EVConfig(
+        charging_requests = []
+        charger_id = self.grid.ev_params.loc[f"{sys_id}_ev", "charger_id"]
+        ts_data = self.grid.cp_ts.query("ChargerID == @charger_id")
+        for _, row in ts_data.iterrows():
+            capacity = row["TargetSoc"] - row["fictive_soc_start"]
+            time_index = [x.tz_localize(None) for x in self.time_index]
+
+            req = configs.ChargingRequest(
+                start_step=time_index.index(row["relative_start"]),
+                end_step=time_index.index(row["relative_end"]),
+                capacity=capacity)
+            charging_requests.append(req)
+
+        p_nom = self.grid.ev_params.loc[f"{sys_id}_ev", "p_nom"]
+        capacity = self.grid.ev_params.loc[f"{sys_id}_ev", "capacity"]
+
+        charger_config = configs.ChargerAndEVConfig(
             name=sys_id,
+            ev_name=sys_id,
             market_config=self.simulation_config.market_config ,
             dt_h=self.simulation_config.dt_h,
             capacity=capacity,
-            init_soc=0.5,
-            target_soc=1.,
             p_inv=p_nom)
+
+        return charger_config, charging_requests

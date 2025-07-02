@@ -52,7 +52,7 @@ class CasadiModel:
                 self.add_heatpump(ems.sys_id, ems.hp)
 
             if ems.ev:
-                self.add_ev(ems.sys_id, ems.ev)
+                self.add_ev(ems.sys_id, ems.ev_params, ems.ev_requests)
 
         # Add top-level objective to slack objectives (see e.g. heat pump).
         self.objective += self.build_objective()
@@ -192,12 +192,29 @@ class CasadiModel:
             next_temperature = temperature[k] + delta_temperature
             self.set_value(temperature[k + 1], next_temperature)
 
-    def add_ev(self, sys_id: str, config: configs.EVConfig):
-        # ToDo: EV currently not regarded.
-        var_name = "p_ev"
-        p_ev = self.build_state(var_name, bounds=(0., 0.))
+    def add_ev(
+            self,
+            sys_id: str,
+            config: configs.ChargerAndEVConfig,
+            requests: list[configs.ChargingRequest]):
+
+        var_name = f"p_ev_at_{sys_id}"
+        # ToDo: Why are both values (p_lim_ac, config.p_inv) modelled?
+        max_charge = max(config.p_lim_ac, config.p_inv)
+        p_ev = self.build_state(var_name, bounds=(0., max_charge))
+        var_name = f"p_ev_effective_at_{sys_id}"
         self.consumption[sys_id] += p_ev
-        raise NotImplementedError("EV planned for multi-unit controller.")
+
+        p_ev_effective = self.build_state(var_name, bounds=(0., config.p_inv))
+        self.set_value(p_ev_effective, casadi.times(config.eff, p_ev))
+
+        # Charger must meet requests.
+        for req_idx, request in enumerate(requests):
+            start, end = request.start_step, request.end_step
+            self.add_constraint(
+                f"meet_charge_request_{req_idx}_at_{sys_id}",
+                request.capacity - casadi.sum(p_ev_effective[start:end]),
+                bounds=(0, 0))
 
     @property
     def discrete(self) -> list[bool]:

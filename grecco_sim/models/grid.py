@@ -61,11 +61,37 @@ class Grid:
             self.hp_params = params.rename(index=name_dict)
             
         if simulation_config.use_ev:
-            params, bat_ts, charge_ts = network_io.get_ev(
-                self.n,
-                simulation_config)
-            self.ev_params = params
-            raise NotImplementedError
+            params, cp_ts = network_io.get_ev(self.n, simulation_config)
+            self.ev_params = params.rename(index=name_dict)
+            # Filter charging processes.
+            for key in ["StartOfProcess", "EndOfProcess"]:
+                cp_ts.loc[:, key] = pd.to_datetime(cp_ts[key])
+            start = self.simulation_config.time_index.min().tz_localize(None)
+            end = self.simulation_config.time_index.max().tz_localize(None)
+            q1 = "(@start <= EndOfProcess) and (@end >= StartOfProcess)"
+            cp_ts = cp_ts.query(q1).copy()
+            q2 = "StartSoc < TargetSoc"
+            cp_ts = cp_ts.query(q2).copy()
+
+            charging_time = cp_ts["EndOfProcess"] - cp_ts["StartOfProcess"]
+            cp_ts.loc[:, "total_time"] = charging_time
+
+            # ChargingProcesses are not always fully in SimulationTime
+            # We use a fictive_soc_start to adapt charge debt.
+
+            # Clip start and end time at simulation time borders.
+            relative_start = cp_ts["StartOfProcess"].clip(lower=start)
+            relative_end = cp_ts["EndOfProcess"].clip(upper=end)
+            cp_ts.loc[:, "relative_start"] = relative_start
+            cp_ts.loc[:, "relative_end"] = relative_end
+            cp_ts.loc[:, "relative_time"] = relative_end - relative_start
+
+            # Reduce charge_debt by assuming that some charging took place.
+            factor = cp_ts["relative_time"] / cp_ts["total_time"]
+            charge_debt = cp_ts.loc[:, "TargetSoc"] - cp_ts.loc[:, "StartSoc"]
+            cp_ts.loc[:, "fictive_soc_start"] = cp_ts["StartSoc"]
+            cp_ts.loc[:, "fictive_soc_start"] += (1 - factor) * charge_debt
+            self.cp_ts = cp_ts
 
         self.units_at = {sys_id: self._units_at(sys_id)
                          for sys_id in self.sys_ids}
@@ -199,9 +225,6 @@ class Grid:
             if unit_id in self.p_pv_t.columns:  # Not every node has pv.
                 data[f"{unit_id}_p"] = self.p_pv_t.loc[:, unit_id]
 
-        if self.simulation_config.use_ev:
-            raise ValueError("EVs currently under construction.")
-
         return data
 
     def congestion(self, snapshots: Optional[pd.DatetimeIndex] = None) -> pd.DataFrame:
@@ -264,8 +287,11 @@ class Grid:
             if "baseload" in load.lower():
                 p_set_load[load] = data["baseload_p_model"]
 
-            elif "heat pump" in load.lower() or "heat_pump" in load.lower():
-                p_set_load[load] = data["hp_p_model"]
+            elif "heat" in load.lower():
+                if not self.simulation_config.use_heatpumps:
+                    continue
+                else:
+                    p_set_load[load] = data["hp_p_model"]
 
             else:
                 raise NotImplementedError(f"Unknown load {load}.")
@@ -292,6 +318,9 @@ class Grid:
                 data = state[build.sys_id(bus)]
 
                 p_set_bat[storage] = data["bat_p_model"]
+
+        if self.simulation_config.use_ev:
+            raise NotImplementedError
 
         # PyPSA snapshots are not localized. PyPSA loads are in MW.
         time_index = [self.time_index[t].tz_localize(None)]
