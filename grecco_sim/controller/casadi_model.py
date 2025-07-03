@@ -55,7 +55,7 @@ class CasadiModel:
                 self.add_heatpump(ems.sys_id, ems.hp)
 
             if ems.ev_charger:
-                self.add_ev(ems.sys_id, ems.ev_charger, ems.ev_requests)
+                self.add_ev(ems.sys_id, ems.ev_charger)
 
         # Add top-level objective to slack objectives (see e.g. heat pump).
         self.objective += self.build_objective()
@@ -363,3 +363,58 @@ class CasadiModel:
                 upper_bounds.append(constraint["upper_bound"])
 
         return np.array(lower_bounds), np.array(upper_bounds)
+
+    def get_cummulative_ev_lims(
+            self,
+            horizon: int,
+            config: configs.ChargerAndEVConfig,
+            request_list: list[configs.ChargingRequest]) -> (
+                tuple)[np.ndarray, np.ndarray]:
+
+        """ Calculate the cummulative upper limits for WLS given requests. """
+
+        lower_limits = np.zeros(horizon)
+        upper_limits = np.zeros(horizon)
+
+        # Filter requests relevant to the regarded timeframe.
+        requests = [r for r in request_list
+                    if r.start_step <= self.now + horizon
+                    and r.end_step >= self.now]
+
+        max_kwh_by_t = config.p_lim_effective * config.dt_h
+
+        for i in range(horizon):
+            # Get the request that is active at that point in time.
+            active_requests = [r for r in requests
+                               if r.active_at(i + self.now)]
+
+            if len(active_requests) > 1:
+                msg = "Charger can handle only one request per time step."
+                raise NotImplementedError(msg)
+
+            elif len(active_requests) == 0 or active_requests[0].capacity == 0:
+                if i == 0:
+                    # Keep limits at 0.
+                    continue
+                else:
+                    lower_limits[i] = lower_limits[i - 1]
+                    upper_limits[i] = upper_limits[i - 1]
+
+            else:
+                # We have an active request with positive capacity.
+                r = active_requests[0]
+
+                # If a request has capacity x and in the future y can be
+                # delivered, then this time step has to deliver at least x - y.
+                steps_left = r.end_step - (self.now + i)
+                debt = r.capacity - steps_left * max_kwh_by_t
+                lower_limits[i] = lower_limits[i - 1] + max(debt, 0)
+
+                start = max(r.start_step, self.now)
+                start_value = 0 if start == self.now else upper_limits[start - 1]
+                before = upper_limits[i - 1]
+                max_add = min(max_kwh_by_t, r.capacity + start_value - before)
+                max_add = max(max_add, 0)
+                upper_limits[i] = upper_limits[i - 1] + max_add
+
+        return lower_limits, upper_limits

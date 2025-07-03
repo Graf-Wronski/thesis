@@ -101,11 +101,11 @@ class MultiUnitController:
             p[f"temp_init_at_{self.sys_id}"] = state["hp_temp_in"]
 
         if self.sys_config.ev_requests:
-            p[f"ev_cum_upper_limit_at_{self.sys_id}"] = self.get_upper_ev_lims(
-                horizon=len(forecast),
-                now=self.now,
-                requests=self.sys_config.ev_requests)
-            p[f"ev_cum_lower_limit_at_{self.sys_id}"] = ...
+            lower_lims, upper_lims = self.get_cummulative_ev_lims(
+                requests=requests,
+                horizon=len(forecast))
+            p[f"ev_cum_upper_limit_at_{self.sys_id}"] = upper_lims
+            p[f"ev_cum_lower_limit_at_{self.sys_id}"] = lower_lims
 
         p = casadi.vertcat(*[p[param_name] for param_name in
                             self.mathematical_model.parameters])
@@ -138,26 +138,28 @@ class MultiUnitController:
 
         return schedule
 
-    def get_upper_ev_lims(
+    def get_cummulative_ev_lims(
             self,
             horizon: int,
-            now: int,
-            requests: list[configs.ChargingRequest]) -> np.ndarray:
+            request_list: list[configs.ChargingRequest]) -> (
+                tuple)[np.ndarray, np.ndarray]:
 
         """ Calculate the cummulative upper limits for WLS given requests. """
 
+        lower_limits = np.zeros(horizon)
         upper_limits = np.zeros(horizon)
 
         # Filter requests relevant to the regarded timeframe.
-        requests = [r for r in requests
-                    if r.start_step <= now + horizon
-                    and r.end_step >= now]
+        requests = [r for r in request_list
+                    if r.start_step <= self.now + horizon
+                    and r.end_step >= self.now]
 
         max_kwh_by_t = self.sys_config.ev_charger.p_lim_effective * self.dth
 
         for i in range(horizon):
             # Get the request that is active at that point in time.
-            active_requests = [r for r in requests if r.active_at(i + now)]
+            active_requests = [r for r in requests
+                               if r.active_at(i + self.self.now)]
 
             if len(active_requests) > 1:
                 msg = "Charger can handle only one request per time step."
@@ -165,39 +167,27 @@ class MultiUnitController:
 
             elif len(active_requests) == 0 or active_requests[0].capacity == 0:
                 if i == 0:
-                    upper_limits[i] = 0
+                    # Keep limits at 0.
+                    continue
                 else:
-                    upper_limits[i] = upper_limits[i-1]
+                    lower_limits[i] = lower_limits[i - 1]
+                    upper_limits[i] = upper_limits[i - 1]
 
             else:
                 # We have an active request with positive capacity.
                 r = active_requests[0]
-                start = min(r.start_step, now)
-                end = min(r.end_step, now + i)
-                p_considered = upper_limits[end] - upper_limits[start]
 
-                # Check if charging maximum was already fulfilled.
-                if p_considered > r.capacity:
-                    raise ValueError("More capacity considered than required.")
-                elif p_considered == r.capacity:
-                    upper_limits[i] = upper_limits[i - 1]
-                else:
-                    upper_limits[i] = min(r.capacity - p_considered, max_kwh_by_t)
+                # If a request has capacity x and in the future y can be
+                # delivered, then this time step has to deliver at least x - y.
+                steps_left = r.end_step - (self.now + i)
+                debt = r.capacity - steps_left * max_kwh_by_t
+                lower_limits[i] = lower_limits[i - 1] + max(debt, 0)
 
+                start = max(r.start_step, self.now)
+                start_value = 0 if start == self.now else upper_limits[start - 1]
+                before = upper_limits[i - 1]
+                max_add = min(max_kwh_by_t, r.capacity + start_value - before)
+                max_add = max(max_add, 0)
+                upper_limits[i] = upper_limits[i - 1] + max_add
 
-
-
-
-
-        return upper_limits
-
-
-    def get_lower_ev_lims(
-            self,
-            horizon: int,
-            now: int,
-            requests: list[configs.ChargingRequest]) -> np.ndarray:
-
-        lower_limits = np.zeros(horizon)
-
-        return lower_limits
+        return lower_limits, upper_limits
