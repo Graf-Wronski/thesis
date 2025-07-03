@@ -11,7 +11,10 @@ class CasadiModel:
             self,
             horizon: int,
             opt_pars: configs.OptimizerConfiguration,
-            ems_configs: dict[str, configs.EMSConfiguration]):
+            ems_configs: dict[str, configs.EMSConfiguration],
+            now: int):
+
+        self.now = now
 
         self.ems_configs = ems_configs
 
@@ -51,11 +54,14 @@ class CasadiModel:
             if ems.hp:
                 self.add_heatpump(ems.sys_id, ems.hp)
 
-            if ems.ev:
-                self.add_ev(ems.sys_id, ems.ev_params, ems.ev_requests)
+            if ems.ev_charger:
+                self.add_ev(ems.sys_id, ems.ev_charger, ems.ev_requests)
 
         # Add top-level objective to slack objectives (see e.g. heat pump).
         self.objective += self.build_objective()
+
+    def step(self):
+        self.now += 1
 
     def build_objective(self) -> casadi.SX:
         raise NotImplementedError("Optimization objective.")
@@ -87,7 +93,6 @@ class CasadiModel:
             self.set_value(p_consume[k], self.consumption[sys_id][k])
 
     def add_pv(self, sys_id: str, config: configs.PVConfig) -> None:
-        # ToDo: PV should be calculated by solar irradiation and system size.
         var_name = f"inflexible_pv_at_{sys_id}"
         p_inflex_pv = self.build_parameter(var_name, self.horizon)
         self.generation[sys_id] += p_inflex_pv
@@ -192,11 +197,13 @@ class CasadiModel:
             next_temperature = temperature[k] + delta_temperature
             self.set_value(temperature[k + 1], next_temperature)
 
-    def add_ev(
-            self,
-            sys_id: str,
-            config: configs.ChargerAndEVConfig,
-            requests: list[configs.ChargingRequest]):
+    def add_ev(self, sys_id: str, config: configs.ChargerAndEVConfig):
+
+        var_name = f"ev_cum_upper_limit_at_{sys_id}"
+        upper_limits = self.build_parameter(var_name)
+
+        var_name = f"ev_cum_lower_limit_at_{sys_id}"
+        lower_limits = self.build_parameter(var_name)
 
         var_name = f"p_ev_at_{sys_id}"
         # ToDo: Why are both values (p_lim_ac, config.p_inv) modelled?
@@ -208,13 +215,32 @@ class CasadiModel:
         p_ev_effective = self.build_state(var_name, bounds=(0., config.p_inv))
         self.set_value(p_ev_effective, casadi.times(config.eff, p_ev))
 
-        # Charger must meet requests.
+        # Finns idea: Set lower limits from behind.
+        # Calculate: How much demand can I fulfill in future and set lower
+        # limit accordingly.
+
+        for i in range(self.horizon):
+            p_ev_min = casadi.sum(p_ev_effective[0:i]) - lower_limits[i]
+            p_ev_max = casadi.sum(p_ev_effective[0:i]) - upper_limits[i]
+
+            var_name = "ev_charging_lower_limits"
+            self.add_constraint(var_name, p_ev_min, (np.infty, 0))
+
+            var_name = "ev_charging_upper_limits"
+            self.add_constraint(var_name, p_ev_max, (0, -np.infty))
+
+        """ # Charger must meet requests.
         for req_idx, request in enumerate(requests):
+
+
             start, end = request.start_step, request.end_step
             self.add_constraint(
                 f"meet_charge_request_{req_idx}_at_{sys_id}",
-                request.capacity - casadi.sum(p_ev_effective[start:end]),
+                request_demand[req_idx] - casadi.sum(p_ev_effective[start:end]),
                 bounds=(0, 0))
+        """
+
+
 
     @property
     def discrete(self) -> list[bool]:

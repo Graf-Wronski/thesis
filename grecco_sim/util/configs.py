@@ -286,7 +286,6 @@ class ChargerAndEVConfig(UnitConfiguration):
 
     # Arguments with defaults (eff from SynPro Data, TBC)
     eff: float = 0.93
-    p_lim_dc: float = 10.
     p_lim_ac: float = 11.
 
     # Bounds for state of charge
@@ -295,13 +294,20 @@ class ChargerAndEVConfig(UnitConfiguration):
 
     unit_type: str = "ev"
 
+    @property
+    def p_lim_effective(self) -> float:
+        return self.eff * self.p_lim_ac
 
 @dataclasses.dataclass
 class ChargingRequest:
-    """ Request capacity between two timesteps. """
+    """ Request capacity between two time steps. """
     start_step: int
     end_step: int
     capacity: float
+
+    def active_at(self, step: int):
+        """ Check if a request is active at a given time step. """
+        return (self.start_step <= step) and (step <= self.end_step)
 
     def __post_init__(self):
         if self.end_step < self.start_step:

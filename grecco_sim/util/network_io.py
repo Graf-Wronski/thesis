@@ -86,7 +86,7 @@ def get_ev(
     charging_processes = pd.read_csv(sim_config.charging_process_path)
 
     q = "type == 'EMHOMESINGLE' or type == 'EMHOMEMULTI'"
-    charger_params = network.storage_units.query(q)
+    charger_params = network.storage_units.query(q).copy()
     check_unique(charger_params["bus"], unit_type='ev_charger')
 
     # Add EV params.

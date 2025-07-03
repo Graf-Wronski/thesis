@@ -13,6 +13,7 @@ class CentralController:
             opt_config: configs.OptimizerConfiguration,
             ems_configs: dict[str, configs.EMSConfiguration]):
 
+        self.now = 0
         self.config = opt_config
 
         # Horizon shrinks if time window is too small.
@@ -22,11 +23,16 @@ class CentralController:
         self.mathematical_model = CentralOptimizationModel(
             horizon=self.config.horizon,
             opt_pars=self.config,
-            ems_configs=ems_configs)
+            ems_configs=ems_configs,
+            now=self.now)
 
         problem = self.mathematical_model.problem
         discrete = self.mathematical_model.discrete
         self.solver = build.solver(self.config, problem, discrete)
+
+    def step(self):
+        self.now += 1
+        self.mathematical_model.step()
 
     @property
     def sys_ids(self) -> list[str]:
@@ -44,7 +50,8 @@ class CentralController:
             self.mathematical_model = CentralOptimizationModel(
                 horizon=self.horizon,
                 opt_pars=self.config,
-                ems_configs=self.ems_configs)
+                ems_configs=self.ems_configs,
+                now=self.now)
             problem = self.mathematical_model.problem
             discrete = self.mathematical_model.discrete
             self.solver = build.solver(self.config, problem, discrete)

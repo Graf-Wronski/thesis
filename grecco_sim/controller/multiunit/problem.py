@@ -12,13 +12,15 @@ class MultiUnitModel:
             sys_config: configs.EMSConfiguration,
             sys_id: str,
             opt_pars: configs.OptimizerConfiguration,
-            market_config: configs.MarketConfiguration):
+            market_config: configs.MarketConfiguration,
+            now: int):
 
         self.horizon = horizon
         self.market_config = market_config
         self.sys_config = sys_config
         self.sys_id = sys_id
         self.opt_pars = opt_pars
+        self.now = now
 
         # Each 'state'
         self.states = []
@@ -58,8 +60,8 @@ class MultiUnitModel:
         if self.sys_config.hp:
             self.add_heatpump(solar_irradiance, lam_congestion)
 
-        if self.sys_config.ev:
-            self.add_ev()
+        if self.sys_config.ev_charger:
+            self.add_ev(lam_congestion)
 
         # Central objective is to minimize costs (= maximize profits).
         self.objective += market_config.c_supply * casadi.sum1(p_consume)
@@ -70,6 +72,9 @@ class MultiUnitModel:
             self.set_value(p_grid[k], p_consume[k] - p_feed_in[k])
             self.set_value(p_feed_in[k], self.generation[k])
             self.set_value(p_consume[k], self.consumption[k])
+
+    def step(self):
+        self.now += 1
 
     def add_pv(self):
         # ToDo: PV should be calculated by solar irradiation and system size.
@@ -185,14 +190,32 @@ class MultiUnitModel:
 
         self.objective += casadi.dot(lam_congestion, p_heatpump)
 
+    def add_ev(self, lam_congestion: np.ndarray):
 
-    def add_ev(self):
-        # ToDo: EV currently not regarded.
-        var_name = "p_ev"
-        p_ev = self.build_state(var_name, bounds=(0., 0.))
+        config = self.sys_config.ev_charger
+        requests = self.sys_config.ev_requests
+
+        var_name = f"p_ev_at_{self.sys_id}"
+        # ToDo: Why are both values (p_lim_ac, config.p_inv) modelled?
+        max_charge = max(config.p_lim_ac, config.p_inv)
+        p_ev = self.build_state(var_name, bounds=(0., max_charge))
+        var_name = f"p_ev_effective_at_{self.sys_id}"
         self.consumption += p_ev
-        raise NotImplementedError("EV planned for multi-unit controller.")
 
+        p_ev_effective = self.build_state(var_name, bounds=(0., config.p_inv))
+        self.set_value(p_ev_effective, casadi.times(config.eff, p_ev))
+
+        # Charger must meet requests.
+        for request_idx, request in enumerate(requests):
+            start, end = request.start_step, request.end_step
+            # Since requests can be larger in time than horizon.
+
+            self.add_constraint(
+                f"meet_charge_request_{request_idx}_at_{self.sys_id}",
+                request.capacity - casadi.sum(p_ev_effective[start:end]),
+                bounds=(0, 0))
+
+        self.objective += casadi.dot(lam_congestion, p_ev)
 
     def build_state(
             self,

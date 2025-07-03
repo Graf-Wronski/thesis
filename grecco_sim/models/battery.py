@@ -14,7 +14,8 @@ class ConverterModelEff(object):
 
     """
     def __init__(self, eff):
-        assert 0 < eff <= 1
+        if not (0 < eff <= 1):
+            raise ValueError("Charging efficiency must be between 0 and 1.")
         self.eff = eff
 
     def get_ac_power(self, p_dc):

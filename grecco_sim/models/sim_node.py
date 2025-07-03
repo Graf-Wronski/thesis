@@ -55,6 +55,7 @@ class SimulationNode:
     def step(self):
         self.t += 1
         self.phys_model.step()
+        self.controller.step()
 
     def get_schedule(
             self,

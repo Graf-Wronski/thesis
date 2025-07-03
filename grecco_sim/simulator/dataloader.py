@@ -1,7 +1,6 @@
 from typing import Optional
 
 import pandas as pd
-from fontTools.subset.svg import xpath
 
 from grecco_sim.models import grid
 from grecco_sim.util import configs, data_io

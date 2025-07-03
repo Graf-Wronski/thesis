@@ -82,13 +82,17 @@ class ChargingProcess(object):
 
 
 class EVCharger(model.Model):
+
+    @property
+    def model_type(self) -> str:
+        return "ev"
+
     def __init__(
             self,
             sys_id: str,
             horizon: int,
             dt_h: float,
-            config: configs.ChargerAndEVConfig,
-            ts_data: pd.DataFrame):
+            config: configs.ChargerAndEVConfig):
 
         super().__init__(sys_id, horizon, dt_h)
 
@@ -105,7 +109,7 @@ class EVCharger(model.Model):
         self.cp_indices = []
         self.active_cp = None
 
-        self.initialize_charging_processes(ts_data, sys_id)
+        # self.initialize_charging_processes(ts_data, sys_id)
 
     @property
     def p_model(self) -> np.ndarray:

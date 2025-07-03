@@ -20,6 +20,8 @@ class MultiUnitController:
 
         """ Control (potentially) multiple units of different types. """
 
+        self.now = 0
+        self.dth = sim_config.dt_h
         self.sys_id = ems_config.sys_id
         self.opt_pars = sim_config.optimizer_config
         self.sys_config = ems_config
@@ -34,10 +36,17 @@ class MultiUnitController:
             sys_config=self.sys_config,
             sys_id=self.sys_id,
             opt_pars=self.opt_pars,
-            market_config=self.market_config)
+            market_config=self.market_config,
+            now=self.now)
 
         p = self.mathematical_model.lp
         self.solver = build.solver(self.opt_pars, p)
+
+    def step(self):
+        # ToDo: step is required for charging processes. A clean solution
+        #   would probably use preprocessing instead of step.
+        self.now += 1
+        self.mathematical_model.step()
 
     def get_schedule(
             self,
@@ -64,7 +73,8 @@ class MultiUnitController:
                 sys_config=self.sys_config,
                 sys_id=self.sys_id,
                 opt_pars=self.opt_pars,
-                market_config=self.market_config)
+                market_config=self.market_config,
+                now=self.now)
 
             lp = self.mathematical_model.lp
             self.solver = build.solver(self.opt_pars, lp)
@@ -89,6 +99,13 @@ class MultiUnitController:
         if self.sys_config.hp:
             p[f"temp_outside_at_{self.sys_id}"] = forecast.temp_outisde
             p[f"temp_init_at_{self.sys_id}"] = state["hp_temp_in"]
+
+        if self.sys_config.ev_requests:
+            p[f"ev_cum_upper_limit_at_{self.sys_id}"] = self.get_upper_ev_lims(
+                horizon=len(forecast),
+                now=self.now,
+                requests=self.sys_config.ev_requests)
+            p[f"ev_cum_lower_limit_at_{self.sys_id}"] = ...
 
         p = casadi.vertcat(*[p[param_name] for param_name in
                             self.mathematical_model.parameters])
@@ -120,3 +137,67 @@ class MultiUnitController:
             p_hp=p_heatpump)
 
         return schedule
+
+    def get_upper_ev_lims(
+            self,
+            horizon: int,
+            now: int,
+            requests: list[configs.ChargingRequest]) -> np.ndarray:
+
+        """ Calculate the cummulative upper limits for WLS given requests. """
+
+        upper_limits = np.zeros(horizon)
+
+        # Filter requests relevant to the regarded timeframe.
+        requests = [r for r in requests
+                    if r.start_step <= now + horizon
+                    and r.end_step >= now]
+
+        max_kwh_by_t = self.sys_config.ev_charger.p_lim_effective * self.dth
+
+        for i in range(horizon):
+            # Get the request that is active at that point in time.
+            active_requests = [r for r in requests if r.active_at(i + now)]
+
+            if len(active_requests) > 1:
+                msg = "Charger can handle only one request per time step."
+                raise NotImplementedError(msg)
+
+            elif len(active_requests) == 0 or active_requests[0].capacity == 0:
+                if i == 0:
+                    upper_limits[i] = 0
+                else:
+                    upper_limits[i] = upper_limits[i-1]
+
+            else:
+                # We have an active request with positive capacity.
+                r = active_requests[0]
+                start = min(r.start_step, now)
+                end = min(r.end_step, now + i)
+                p_considered = upper_limits[end] - upper_limits[start]
+
+                # Check if charging maximum was already fulfilled.
+                if p_considered > r.capacity:
+                    raise ValueError("More capacity considered than required.")
+                elif p_considered == r.capacity:
+                    upper_limits[i] = upper_limits[i - 1]
+                else:
+                    upper_limits[i] = min(r.capacity - p_considered, max_kwh_by_t)
+
+
+
+
+
+
+        return upper_limits
+
+
+    def get_lower_ev_lims(
+            self,
+            horizon: int,
+            now: int,
+            requests: list[configs.ChargingRequest]) -> np.ndarray:
+
+        lower_limits = np.zeros(horizon)
+
+        return lower_limits

@@ -9,9 +9,10 @@ class CentralOptimizationModel(casadi_model.CasadiModel):
             self,
             horizon: int,
             opt_pars: configs.OptimizerConfiguration,
-            ems_configs: dict[str, configs.EMSConfiguration]):
+            ems_configs: dict[str, configs.EMSConfiguration],
+            now: int):
 
-        super().__init__(horizon, opt_pars, ems_configs)
+        super().__init__(horizon, opt_pars, ems_configs, now)
 
     @property
     def p_trafo(self) -> casadi.SX:
