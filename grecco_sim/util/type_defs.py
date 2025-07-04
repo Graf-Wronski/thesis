@@ -100,6 +100,7 @@ class Schedule(object):
     p_grid: np.ndarray
     p_bat: Optional[np.ndarray] = None
     p_hp: Optional[np.ndarray] = None
+    p_ev: Optional[np.ndarray] = None
     u: np.ndarray = dataclasses.field(default_factory=lambda: np.array([])) # not necessary
 
     grads: np.ndarray = dataclasses.field(default_factory=lambda: np.array([]))
@@ -125,6 +126,9 @@ class Schedule(object):
 
         if self.p_hp is not None:
             now["p_hp"] = self.p_hp[0]
+
+        if self.p_ev is not None:
+            now["p_ev"] = self.p_ev[0]
 
         return now
 

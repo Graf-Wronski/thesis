@@ -22,7 +22,7 @@ def main():
 
     # coordination_mechanism = "central"
     # coordination_mechanism = "transformer_fee"
-    coordination_mechanism = "feeder_fee"
+    coordination_mechanism = "transformer_fee"
     # coordination_mechanism = "none"
 
     timestamp = datetime.datetime.now().strftime("%y%m%d_%H%M")
@@ -37,15 +37,15 @@ def main():
         slack_penalty_thermal=1000.0)
 
     simulation_config = configs.SimulationConfiguration(
-        n_time_steps=16,
+        n_time_steps=96,
         step_size=datetime.timedelta(minutes=15),
         start_time=datetime.datetime(2023, 6, 24, tzinfo=pytz.utc),
         coordinator_name=coordination_mechanism,
         sim_tag=f"{coordination_mechanism}",
-        use_pv=False,
-        use_heatpumps=False,
+        use_pv=True,
+        use_heatpumps=True,
         use_ev=True,
-        use_batteries=False,
+        use_batteries=True,
         output_dir=pathlib.Path("default") / timestamp,
         optimizer_config=optimizer_config,
         grid_data_path=grid_path,

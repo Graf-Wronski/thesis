@@ -59,6 +59,7 @@ class Household(model.Model):
         if ems_config.ev_charger:
             self.ev = ev_charger.EVCharger(
                 config=ems_config.ev_charger,
+                requests=ems_config.ev_requests,
                 **model_pars)
 
         self.market_config = ems_config.market

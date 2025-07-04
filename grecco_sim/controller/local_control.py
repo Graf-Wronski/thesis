@@ -103,6 +103,9 @@ class LocalControllerNoBat(LocalControllerBase):
         #  array?
         return Schedule(p_grid=forecast.residual_load.values)
 
+    def step(self):
+        pass
+
 
 class LocalControllerPassControl(LocalControllerBase):
     def __init__(self, *args):

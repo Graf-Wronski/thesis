@@ -71,6 +71,9 @@ class Plotter:
             self.plot_hp_power()
             self.plot_hp_temp_in()
 
+        if self.sim_config.use_ev:
+            self.plot_ev_power()
+
         # ToDo: This seems very specific.
         if self.sim_config.coordinator_name != "local_self_suff" and False:
             self.plot_assigned_grid_fees()
@@ -99,7 +102,9 @@ class Plotter:
         bat_p = pd.DataFrame({"P": bat_p_ts.sum(axis=1), "type": "Bat"})
         hp_p_ts = self.results.state_ts(key1="hp", key2="p_model")
         hp_p = pd.DataFrame({"P": hp_p_ts.sum(axis=1), "type": "HP"})
-        data = pd.concat([load_p, pv_p, bat_p, hp_p])
+        ev_p_ts = self.results.state_ts(key1="ev", key2="p_model")
+        ev_p = pd.DataFrame({"P": ev_p_ts.sum(axis=1), "type": "EV"})
+        data = pd.concat([load_p, pv_p, bat_p, hp_p, ev_p])
         data["Time"] = pd.DatetimeIndex(data.index)
         sns.lineplot(data, ax=ax, x="Time", y="P", hue="type",
                      drawstyle='steps-pre')
@@ -118,6 +123,13 @@ class Plotter:
         plot.set_two_hours_x_axis(ax)
 
         fig.savefig(self.plot_dir / f"p_model.pdf")
+
+    def plot_ev_power(self):
+        ev_data = self.results.state_ts("ev_p_model")
+        self.cummulated_unit_plot(
+            data=ev_data,
+            title="EV power",
+            value_name="Power (kW)")
 
     def plot_hp_power(self):
         hp_data = self.results.state_ts("hp_p_model")

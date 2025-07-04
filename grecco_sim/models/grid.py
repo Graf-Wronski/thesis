@@ -320,7 +320,7 @@ class Grid:
                 p_set_bat[storage] = data["bat_p_model"]
 
         if self.simulation_config.use_ev:
-            raise NotImplementedError
+            pass
 
         # PyPSA snapshots are not localized. PyPSA loads are in MW.
         time_index = [self.time_index[t].tz_localize(None)]

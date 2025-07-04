@@ -1,6 +1,5 @@
 import abc
 from typing import Optional, Union
-import math
 
 import numpy as np
 

@@ -68,7 +68,8 @@ class CentralController:
         return schedules
 
     def state_to_params(
-            self, state: dict,
+            self,
+            state: dict,
             forecast: Any) -> dict[str, np.ndarray]:
 
         # ToDo: Conflict between global weather and individual load forecasts.
@@ -91,6 +92,16 @@ class CentralController:
 
             if ems.hp:
                 p[f"temp_init_at_{sys_id}"] = state[sys_id]["hp_temp_in"]
+
+            if ems.ev_requests:
+                lower_lims, upper_lims = build.cummulative_ev_lims(
+                    now=self.now,
+                    horizon=len(forecast.solar_irradiance),
+                    config=ems.ev_charger,
+                    request_list=ems.ev_requests)
+
+                p[f"ev_cum_upper_limit_at_{sys_id}"] = upper_lims
+                p[f"ev_cum_lower_limit_at_{sys_id}"] = lower_lims
 
         p = casadi.vertcat(*[p[param_name] for param_name in
                              self.mathematical_model.parameters])

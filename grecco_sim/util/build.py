@@ -1,6 +1,6 @@
-import os, sys
 from typing import Union, Any, Optional
 
+import numpy as np
 import pandas as pd
 
 from grecco_sim.coordinator import first_order, central
@@ -72,3 +72,58 @@ def coordinator(grecco_sim: Any) -> Any:
     else:
         msg = f"Unknown coordinator name {name}."
         raise ValueError(msg)
+
+
+def cummulative_ev_lims(
+        now: int,
+        horizon: int,
+        config: configs.ChargerAndEVConfig,
+        request_list: list[configs.ChargingRequest]) -> (
+        tuple)[np.ndarray, np.ndarray]:
+    """ Calculate the cummulative upper limits for WLS given requests. """
+
+    lower_limits = np.zeros(horizon)
+    upper_limits = np.zeros(horizon)
+
+    # Filter requests relevant to the regarded timeframe.
+    requests = [r for r in request_list
+                if r.start_step <= now + horizon
+                and r.end_step >= now]
+
+    max_kwh_by_t = config.p_lim_effective * config.dt_h
+
+    for i in range(horizon):
+        # Get the request that is active at that point in time.
+        active_requests = [r for r in requests
+                           if r.active_at(i + now)]
+
+        if len(active_requests) > 1:
+            msg = "Charger can handle only one request per time step."
+            raise NotImplementedError(msg)
+
+        elif len(active_requests) == 0 or active_requests[0].capacity == 0:
+            if i == 0:
+                # Keep limits at 0.
+                continue
+            else:
+                lower_limits[i] = lower_limits[i - 1]
+                upper_limits[i] = upper_limits[i - 1]
+
+        else:
+            # We have an active request with positive capacity.
+            r = active_requests[0]
+
+            # If a request has capacity x and in the future y can be
+            # delivered, then this time step has to deliver at least x - y.
+            steps_left = r.end_step - (now + i)
+            debt = r.capacity - steps_left * max_kwh_by_t
+            lower_limits[i] = lower_limits[i - 1] + max(debt, 0)
+
+            start = max(r.start_step, now)
+            start_value = 0 if start == now else upper_limits[start - now - 1]
+            before = upper_limits[i - 1]
+            max_add = min(max_kwh_by_t, r.capacity + start_value - before)
+            max_add = max(max_add, 0)
+            upper_limits[i] = upper_limits[i - 1] + max_add
+
+    return lower_limits, upper_limits

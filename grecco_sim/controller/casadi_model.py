@@ -30,6 +30,13 @@ class CasadiModel:
         self.consumption = dict()
         self.generation = dict()
 
+        # Dicts allow reference to loads.
+        self.p_baseload = dict()
+        self.p_inflex_pv = dict()
+        self.p_bat = dict()
+        self.p_heatpump = dict()
+        self.p_ev = dict()
+
         for sys_id in self.sys_ids:
             self.consumption[sys_id] = casadi.SX(np.zeros((horizon, 1)))
             self.generation[sys_id] = casadi.SX(np.zeros((horizon, 1)))
@@ -75,6 +82,7 @@ class CasadiModel:
 
         var_name = f"p_baseload_at_{sys_id}"
         p_baseload = self.build_parameter(var_name, self.horizon)
+        self.p_baseload[sys_id] = p_baseload
         self.consumption[sys_id] += p_baseload
 
         var_name = f"p_feed_in_at_{sys_id}"
@@ -95,6 +103,7 @@ class CasadiModel:
     def add_pv(self, sys_id: str, config: configs.PVConfig) -> None:
         var_name = f"inflexible_pv_at_{sys_id}"
         p_inflex_pv = self.build_parameter(var_name, self.horizon)
+        self.p_inflex_pv[sys_id] = p_inflex_pv
         self.generation[sys_id] += p_inflex_pv
 
     def add_battery(self, sys_id: str, config: configs.StorageConfig) -> None:
@@ -116,6 +125,7 @@ class CasadiModel:
 
         var_name = f"p_bat_at_{sys_id}"
         p_bat = self.build_state(var_name)
+        self.p_bat[sys_id] = p_bat
 
         # Discharged power is discharge power minus efficiency losses.
         bat_efficiency = config.eff * np.ones(self.horizon)
@@ -138,6 +148,7 @@ class CasadiModel:
 
         var_name = f"p_heatpump_at_{sys_id}"
         p_heatpump = self.build_state(var_name, bounds=(0., config.p_max))
+        self.p_heatpump[sys_id] = p_heatpump
         self.consumption[sys_id] += p_heatpump
 
         var_name = f"temperature_at_{sys_id}"
@@ -200,15 +211,16 @@ class CasadiModel:
     def add_ev(self, sys_id: str, config: configs.ChargerAndEVConfig):
 
         var_name = f"ev_cum_upper_limit_at_{sys_id}"
-        upper_limits = self.build_parameter(var_name)
+        upper_limits = self.build_parameter(var_name, horizon=self.horizon)
 
         var_name = f"ev_cum_lower_limit_at_{sys_id}"
-        lower_limits = self.build_parameter(var_name)
+        lower_limits = self.build_parameter(var_name, horizon=self.horizon)
 
         var_name = f"p_ev_at_{sys_id}"
         # ToDo: Why are both values (p_lim_ac, config.p_inv) modelled?
         max_charge = max(config.p_lim_ac, config.p_inv)
         p_ev = self.build_state(var_name, bounds=(0., max_charge))
+        self.p_ev[sys_id] = p_ev
         var_name = f"p_ev_effective_at_{sys_id}"
         self.consumption[sys_id] += p_ev
 
@@ -220,27 +232,15 @@ class CasadiModel:
         # limit accordingly.
 
         for i in range(self.horizon):
-            p_ev_min = casadi.sum(p_ev_effective[0:i]) - lower_limits[i]
-            p_ev_max = casadi.sum(p_ev_effective[0:i]) - upper_limits[i]
-
-            var_name = "ev_charging_lower_limits"
-            self.add_constraint(var_name, p_ev_min, (np.infty, 0))
-
-            var_name = "ev_charging_upper_limits"
-            self.add_constraint(var_name, p_ev_max, (0, -np.infty))
-
-        """ # Charger must meet requests.
-        for req_idx, request in enumerate(requests):
-
-
-            start, end = request.start_step, request.end_step
             self.add_constraint(
-                f"meet_charge_request_{req_idx}_at_{sys_id}",
-                request_demand[req_idx] - casadi.sum(p_ev_effective[start:end]),
-                bounds=(0, 0))
-        """
+                name="ev_lower_charging_limits",
+                sx=casadi.sum(p_ev_effective[0:i+1]) - lower_limits[i],
+                bounds=(0, np.infty))
 
-
+            self.add_constraint(
+                name="ev_upper_charging_limits",
+                sx=casadi.sum(p_ev_effective[0:i + 1]) - upper_limits[i],
+                bounds=(-np.infty, 0))
 
     @property
     def discrete(self) -> list[bool]:
@@ -363,58 +363,3 @@ class CasadiModel:
                 upper_bounds.append(constraint["upper_bound"])
 
         return np.array(lower_bounds), np.array(upper_bounds)
-
-    def get_cummulative_ev_lims(
-            self,
-            horizon: int,
-            config: configs.ChargerAndEVConfig,
-            request_list: list[configs.ChargingRequest]) -> (
-                tuple)[np.ndarray, np.ndarray]:
-
-        """ Calculate the cummulative upper limits for WLS given requests. """
-
-        lower_limits = np.zeros(horizon)
-        upper_limits = np.zeros(horizon)
-
-        # Filter requests relevant to the regarded timeframe.
-        requests = [r for r in request_list
-                    if r.start_step <= self.now + horizon
-                    and r.end_step >= self.now]
-
-        max_kwh_by_t = config.p_lim_effective * config.dt_h
-
-        for i in range(horizon):
-            # Get the request that is active at that point in time.
-            active_requests = [r for r in requests
-                               if r.active_at(i + self.now)]
-
-            if len(active_requests) > 1:
-                msg = "Charger can handle only one request per time step."
-                raise NotImplementedError(msg)
-
-            elif len(active_requests) == 0 or active_requests[0].capacity == 0:
-                if i == 0:
-                    # Keep limits at 0.
-                    continue
-                else:
-                    lower_limits[i] = lower_limits[i - 1]
-                    upper_limits[i] = upper_limits[i - 1]
-
-            else:
-                # We have an active request with positive capacity.
-                r = active_requests[0]
-
-                # If a request has capacity x and in the future y can be
-                # delivered, then this time step has to deliver at least x - y.
-                steps_left = r.end_step - (self.now + i)
-                debt = r.capacity - steps_left * max_kwh_by_t
-                lower_limits[i] = lower_limits[i - 1] + max(debt, 0)
-
-                start = max(r.start_step, self.now)
-                start_value = 0 if start == self.now else upper_limits[start - 1]
-                before = upper_limits[i - 1]
-                max_add = min(max_kwh_by_t, r.capacity + start_value - before)
-                max_add = max(max_add, 0)
-                upper_limits[i] = upper_limits[i - 1] + max_add
-
-        return lower_limits, upper_limits
