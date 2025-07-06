@@ -55,8 +55,10 @@ class LocalOptimizationProblem(casadi_model.CasadiModel):
         lam_congestion = self.build_parameter(var_name, self.horizon)
 
         if self.config.bat:
-            p_bat = self.p_bat[self.sys_id]
-            self.objective += casadi.dot(lam_congestion, p_bat)
+            p_bat_discharge = self.p_bat_discharge[self.sys_id]
+            p_bat_charge = self.p_bat_charge[self.sys_id]
+            self.objective += casadi.dot(lam_congestion, p_bat_charge)
+            self.objective -= casadi.dot(lam_congestion, p_bat_discharge)
         if self.config.hp:
             p_heatpump = self.p_heatpump[self.sys_id]
             self.objective += casadi.dot(lam_congestion, p_heatpump)
@@ -65,11 +67,3 @@ class LocalOptimizationProblem(casadi_model.CasadiModel):
             self.objective += casadi.dot(lam_congestion, p_ev)
 
         return self.objective
-
-    def p_grid(self) -> casadi.SX:
-        p_grid = casadi.SX(0)
-        for sys_id in self.sys_ids:
-            p_grid += self.consumption[sys_id]
-            p_grid -= self.generation[sys_id]
-        return p_grid
-

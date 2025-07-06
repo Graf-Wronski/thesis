@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal
+from typing import Literal, Optional
 from datetime import datetime
 import pandas as pd
 
@@ -14,17 +14,21 @@ class DataConfiguration:
     pv_quota: float
     hp_quota: float
     bss_quota: float
+    ev_quota: float
 
     sample_name: str = ""
 
     day: int = 24
     month: int = 6
+    # snapshots overwrites day and month if given.
+    snapshots: Optional[pd.DatetimeIndex] = None
 
     forecast: Literal["Perfect", "Gaussian"] = "Perfect"
     seed: int = 65537
 
-    def __post_init__(self):
-        for quota in [self.pv_quota, self.hp_quota, self.bss_quota]:
+    def __post_init__(self):#
+        quotas = [self.pv_quota, self.hp_quota, self.bss_quota, self.ev_quota]
+        for quota in quotas:
             if not (0 <= quota <= 1):
                 raise ValueError("Quotas must be between 0 and 1.")
 
@@ -46,6 +50,9 @@ class DataConfiguration:
 
     @property
     def date_range(self) -> pd.DatetimeIndex:
+        if self.snapshots:
+            return self.snapshots
+
         start = pd.Timestamp(self.year, self.month, self.day, 0, 0)
         end = pd.Timestamp(self.year, self.month, self.day, 23, 45)
 

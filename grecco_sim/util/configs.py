@@ -9,8 +9,9 @@ import pandas as pd
 
 @dataclasses.dataclass
 class MarketConfiguration:
-    c_supply: float = 0.3  # Costs associated with consuming energy (€/kWh).
-    c_feed_in: float = 0.1  # Reward associated with generating energy (€/kWh).
+    c_supply: float = 0.66  # Costs associated with consuming energy (€/kWh).
+    c_feed_in: float = 0.33  # Reward associated with generating energy (
+    # €/kWh).
     max_market_iterations: int = 1 # Limits exchange between units and
     # coordinator.
 
@@ -80,11 +81,6 @@ class SimulationConfiguration:
     grid_data_path: Path
     weather_data_path: Path
 
-    # Horizon of the simulation. Loaded data is cropped. To start_time + 15min * horizon
-    n_time_steps: int
-    # Intended start time of the simulation
-    start_time: datetime.datetime
-
     # Configuration for local optimizers.
     optimizer_config: OptimizerConfiguration
 
@@ -98,8 +94,15 @@ class SimulationConfiguration:
     # Path to store simulation output (e.g. time series, analysis results)
     output_dir: Path = Path(__file__).parents[2] / "results" / "default"
 
-    # Simulation time step in datetime timedelta
-    step_size: datetime.timedelta = datetime.timedelta(minutes=15)
+    # Either [specify step_size, n_time_steps and step_size] or time_index.
+    step_size: Optional[datetime.timedelta] = None
+    # Horizon of the simulation. Loaded data is cropped. To start_time + 15min * horizon
+    n_time_steps: Optional[int] = None
+    # Intended start time of the simulation
+    start_time: Optional[datetime.datetime] = None
+    # Snapshots can be given directly or via n_time_steps, start_time and
+    # step_size
+    time_index: Optional[pd.DatetimeIndex] = None
 
     # Use previous signals in scheduling to augment local objective
     use_previous_signals: bool = False
@@ -130,32 +133,47 @@ class SimulationConfiguration:
             p = Path(__file__).parents[2] / "results" / self.output_dir
             self.output_file_dir = p
 
-        if isinstance(self.start_time, str):
-            self.start_time = datetime.datetime.fromisoformat(self.start_time)
+        time_index_given = self.time_index is not None
+        time_triple_given = all(x is not None for x in (self.start_time,
+                                                        self.step_size,
+                                                        self.n_time_steps))
 
-        if self.start_time.tzinfo is None:
-            raise ValueError("Specify a time zone for simulation range.")
+        msg = ("Specify either time_index\n"
+               "or start_time, step_size and n_time_steps.\n"
+               "Do not specify both.")
 
-        # Verify data paths.
-        if not self.grid_data_path.exists():
-            msg = f"Network data at: {self.grid_data_path}."
-            raise FileNotFoundError(msg)
-        if not self.weather_data_path.exists():
-            msg = f"Weather data at: {self.weather_data_path}."
-            raise FileNotFoundError(msg)
+        # Enforce mutual exclusivity
+        if time_index_given and time_triple_given:
+            raise ValueError(msg)
+        elif not time_index_given and not time_triple_given:
+            raise ValueError(msg)
+
+        if time_triple_given:
+            self.time_index = pd.date_range(
+                start=self.start_time,
+                freq=self.step_size,
+                periods=self.n_time_steps)
+
+        if time_index_given:
+            time_steps = self.time_index.to_series().diff().dropna()
+
+            if not time_steps.nunique() == 1:
+                msg = "TimeIndex must have uniform stepsize."
+                raise ValueError(msg)
+
+            step_size = time_steps.iloc[0]
+            if step_size != pd.Timedelta(minutes=15):
+                raise NotImplementedError
+
+            self.start_time = self.time_index[0]
+            self.step_size = step_size
+            self.n_time_steps = len(self.time_index)
 
     @property
     def dt_h(self) -> float:
         """ Simulation time step in hours as float. """
         return self.step_size.total_seconds() / 3600.
 
-    @property
-    def time_index(self) -> pd.DatetimeIndex:
-        """ Build time index of simulation steps from inputs. """
-        return pd.date_range(
-            start=self.start_time,
-            freq=self.step_size,
-            periods=self.n_time_steps)
 
     @property
     def plot_dir(self) -> Path:

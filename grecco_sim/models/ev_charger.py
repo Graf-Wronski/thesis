@@ -56,8 +56,10 @@ class EVCharger(model.Model):
             control["p_ev"] = 0.
 
         if self.active_request is None and control["p_ev"] != 0.:
-            msg = "Attempting to charge while no request active."
-            raise ValueError(msg)
+            msg = (f"Attempting to charge {control['p_ev']} kw while no "
+                   f"request active.")
+            print(msg)
+            control["p_ev"] = 0
 
         # Reduce active charging process capacity by effective p_ev.
         if self.active_request:

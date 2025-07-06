@@ -6,7 +6,6 @@ import numpy as np
 import random
 from datetime import datetime
 
-from grecco_sim.util.network_io import check_unique
 from thesis.data.data_configuration import DataConfiguration
 from thesis.graph.utils.format import Format
 
@@ -18,6 +17,7 @@ class TimeSeriesSampler:
         self.pv_buses = random.sample(buses, int(len(buses) * config.pv_quota))
         self.bss_buses = random.sample(self.pv_buses, int(len(buses) * config.bss_quota))
         self.hp_buses = random.sample(buses, int(len(buses) * config.hp_quota))
+        self.ev_buses = random.sample(buses, int(len(buses) * config.ev_quota))
 
         np.random.seed(config.seed)
         random.seed(config.seed)
@@ -41,8 +41,8 @@ class TimeSeriesSampler:
 
     def sample_pv(self) -> Tuple[pd.DataFrame, pd.DataFrame]:
         buses = self.pv_buses
-        pv_df = pd.DataFrame({"bus": buses, "carrier": "solar", "control":
-            "PQ"})
+        pv_df = pd.DataFrame(
+            {"bus": buses, "carrier": "solar", "control": "PQ"})
         ts_data = random.choices(self.db.pv_ts, k=len(buses))
         baseload_ts_df = pd.DataFrame(ts_data, index=buses).T
         return pv_df, baseload_ts_df
@@ -59,6 +59,13 @@ class TimeSeriesSampler:
         bss_df = pd.DataFrame({
             "bus": buses, "carrier": "heat_pump", "p_set": p_set})
         return bss_df
+
+    def sample_ev(self) -> pd.DataFrame:
+        buses = self.ev_buses
+        profile = random.choices(self.db.ev_chargers, k=len(buses))
+        ev_df = pd.DataFrame({"type": profile, "bus": buses, "p_nom": 0.011})
+
+        return ev_df
 
     @property
     def irrandiance(self) -> pd.Series:
@@ -91,6 +98,11 @@ class TimeSeriesDB:
     @property
     def pv_ts(self) -> pd.DataFrame:
         raise NotImplementedError
+
+    @property
+    def ev_chargers(self) -> list[str]:
+        """ Charger types as provided by Rebecca and Álvaro. """
+        return [f"charger_{i}" for i in [1, 2, 3, 4]]
 
 
 class OpfingenDB(TimeSeriesDB):

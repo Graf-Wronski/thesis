@@ -313,10 +313,10 @@ class Grid:
                     raise NotImplementedError(msg)
 
         if self.simulation_config.use_batteries:
-            for storage in self.n.storage_units.index:
+            storage_units = self.n.storage_units.query("type == 'h0_battery'")
+            for storage in storage_units.index:
                 bus = self.n.storage_units.loc[storage, "bus"]
                 data = state[build.sys_id(bus)]
-
                 p_set_bat[storage] = data["bat_p_model"]
 
         if self.simulation_config.use_ev:

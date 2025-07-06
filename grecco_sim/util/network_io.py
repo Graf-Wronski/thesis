@@ -80,20 +80,19 @@ def get_ev(
         sim_config: configs.SimulationConfiguration) -> (
         Tuple[pd.DataFrame, pd.DataFrame]):
 
-    # ToDO: In storages, we find charger p_nom. In storages we should find EV
-    #   data, actually.
+    # Unidirectional EVs should be declared as loads, not as storages.
 
     charging_processes = pd.read_csv(sim_config.charging_process_path)
 
-    q = "type == 'EMHOMESINGLE' or type == 'EMHOMEMULTI'"
-    charger_params = network.storage_units.query(q).copy()
+    query = network.storage_units["type"].str.contains("charger")
+    charger_params = network.storage_units[query].copy()
     check_unique(charger_params["bus"], unit_type='ev_charger')
 
     # Add EV params.
     # p = sim_config.ev_capacity_data_path
     # ev_capacity_data = pd.read_csv(p, index_col=0, date_format=Format().date)
     # ToDo: Capacity could be added by extra file.
-    charger_params.loc[:, "charger_id"] = charger_params.index
+    charger_params.loc[:, "charger_id"] = charger_params["type"]
     charger_params.loc[:, "ev_id"] = charger_params["charger_id"] + "_ev"
     charger_params.loc[:, "capacity"] = 60.0
     charger_params.index = "sys_at_bus_" + charger_params["bus"] + "_ev"

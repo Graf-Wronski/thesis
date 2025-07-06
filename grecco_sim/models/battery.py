@@ -96,6 +96,11 @@ class Storage(model.Model):
                    f"information.")
             raise ValueError(msg)
 
+        if np.isnan(control["p_bat"]):
+            msg = f"Control signal for battery is nan. Replacing with 0"
+            print(msg)
+            control["p_bat"] = 0.
+
         battery_control = control["p_bat"]
 
         self._set_power(battery_control)
@@ -130,12 +135,13 @@ class Storage(model.Model):
         else:
             p_net = """
 
+        # Since the controller already regards losses for discharge, we only
+        # have to regard losses for charges. ToDo: This is not pretty.
         self.p_dc[self.t] = p_ac_set * self.eff
 
-        # ...self.converter.get_dc_power(p_ac_set)
 
     def _evolve(self):
-        soc_gain = self.p_dc[self.t] / self.capacity * self.dt_h
+        soc_gain = (self.p_dc[self.t] / self.capacity) * self.dt_h
         self.soc[self.t + 1] = self.soc[self.t] + soc_gain
 
     @property

@@ -132,6 +132,9 @@ class CentralController:
                 p_heatpump = get_solution_vals(f"p_heatpump_at_"
                                                f"{ems_config.sys_id}")
 
+            if ems_config.ev_charger:
+                raise NotImplementedError
+
             schedule = type_defs.Schedule(
                 p_grid=p_grid,
                 p_bat=p_battery,

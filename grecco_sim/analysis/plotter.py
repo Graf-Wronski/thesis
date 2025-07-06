@@ -251,7 +251,7 @@ class Plotter:
                 ax_signals.set_ylabel("Signal (€)")
                 ax_signals.set_xlabel("Time")
                 ax_signals.set_title(f"Signals {i}.")
-                ax_signals.set_ylim((-6., 6.))
+                # ax_signals.set_ylim((-6., 6.))
                 ax_signals.get_xaxis().set_visible(False)
 
                 # Plot cummulative loads.
@@ -277,7 +277,8 @@ class Plotter:
                                 legend=legend, drawstyle='steps-pre')
 
                 ax_cum_loads.set_ylabel("Loads (kWh)")
-                ax_cum_loads.set_ylim((-3 * self.trafo_p_lim_kw, 3 * self.trafo_p_lim_kw))
+                # ax_cum_loads.set_ylim((-3 * self.trafo_p_lim_kw,
+                # 3 * self.trafo_p_lim_kw))
                 ax_cum_loads.set_title(f"Cumulative loads {i}.")
 
                 if i < n_interactions - 1:
@@ -336,15 +337,15 @@ class Plotter:
             ax1.set_ylabel(ylabel1)
             opt_horizon = self.sim_config.optimizer_config.horizon
             ax1.set(xlim=(-1, opt_horizon))
-            ax1.set(ylim=(-5., 5.))
+            # ax1.set(ylim=(-5., 5.))
             ax1.get_legend().remove()
 
             ax2 = ax1.twinx()
             sns.lineplot(x=data[x_name], y=data[y2_name], alpha=1., ax=ax2,
                          color="orange", drawstyle='steps-post',
                          label=y2_name)
-            ax2.set_ylim((-schedule_df["Schedule"].max() - 0.5,
-                          schedule_df["Schedule"].max() + 0.5))
+            # ax2.set_ylim((-schedule_df["Schedule"].max() - 0.5,
+            #              schedule_df["Schedule"].max() + 0.5))
             ax2.tick_params(right=False)
             ax2.set(yticklabels=[])
             ax2.set(ylabel=None)

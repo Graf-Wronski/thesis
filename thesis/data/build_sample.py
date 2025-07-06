@@ -23,6 +23,7 @@ def build_sample(config: DataConfiguration) -> pypsa.Network:
 
     buses = [x for x in n.loads["bus"].unique()]
 
+    # Remove previous generators (other than slack), storages and loads.
     n.loads = pd.DataFrame()
     n.generators = n.generators[n.generators["control"] == "Slack"]
     n.storage_units = pd.DataFrame()
@@ -34,8 +35,7 @@ def build_sample(config: DataConfiguration) -> pypsa.Network:
     pv, pv_p_ts = sampler.sample_pv()
     bss = sampler.sample_bss()
     hp = sampler.sample_hp()
-
-    # Remove generators, storages and loads.
+    ev = sampler.sample_ev()
 
     for _, row in baseload.iterrows():
         bus = row["bus"]
@@ -68,6 +68,13 @@ def build_sample(config: DataConfiguration) -> pypsa.Network:
         storage = {"name": f"Storage at {bus}", "bus": bus, "p_nom": p_nom}
         n.add(class_name="StorageUnit", type="h0_battery", **storage)
 
+    for _, row in ev.iterrows():
+        bus, p_nom, charger_profile = row["bus"], row["p_nom"], row["type"]
+        charger = {"name": f"EV at {bus}", "bus": bus,
+                   "p_nom": p_nom, "type": charger_profile}
+        # ToDo:Non bi-directional chargers should be modelled as loads.
+        n.add(class_name="StorageUnit", **charger)
+
     return n
 
 if __name__ == "__main__":
@@ -75,14 +82,17 @@ if __name__ == "__main__":
                   / "opfingen")
 
     data_config = DataConfiguration(
+        day=13,
+        month=1,
         topology= p_topology,
         ts_data_base="Opfingen",
-        pv_quota=0.5,
-        bss_quota=0.5,
-        hp_quota=0.5,
+        pv_quota=0.9,
+        bss_quota=0.9,
+        hp_quota=0.9,
+        ev_quota=0.9,
         seed=17)
     network = build_sample(data_config)
-    network.name = "Sample Network 0"
+    network.name = "Sample Network Units 90 %"
     network.lpf()
 
     p = Path(f"/home/carl-wanninger/data/samples/{data_config.ts_data_base}")

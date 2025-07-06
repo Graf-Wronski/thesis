@@ -1,6 +1,9 @@
 import pathlib
 import datetime
 import pytz
+import  os
+
+os.environ['GRB_QUIET'] = '1'
 
 from grecco_sim.analysis import plotter
 from grecco_sim.util import configs
@@ -15,14 +18,14 @@ simplefilter(action="ignore", category=pd.errors.PerformanceWarning)
 # weather_data_path = data_dir / "Opfingen_Profiles_2023" / "pvgis_2023_01.csv"
 
 data_root = pathlib.Path("/home/carl-wanninger/data/")
-grid_path = data_root / "samples" / "Opfingen" / "Opfingen_20250629_113452_0"
+grid_path = data_root / "samples" / "Opfingen" / "Opfingen_20250705_184425_0"
 weather_data_path =  data_root / "weather" / "2023_dwd.csv"
 
 def main():
 
     # coordination_mechanism = "central"
-    # coordination_mechanism = "transformer_fee"
     coordination_mechanism = "transformer_fee"
+    # coordination_mechanism = "feeder_fee"
     # coordination_mechanism = "none"
 
     timestamp = datetime.datetime.now().strftime("%y%m%d_%H%M")
@@ -30,16 +33,18 @@ def main():
     market_config = configs.MarketConfiguration(max_market_iterations=2)
 
     optimizer_config = configs.OptimizerConfiguration(
-        horizon=10,
+        horizon=16,
         alpha=1.,  # Grid-fee scales with alpha (and congestion amount).
         solver_name="osqp",
         forecast_type="perfect",
         slack_penalty_thermal=1000.0)
 
+    start = pd.Timestamp(year=2023, month=1, day=13, hour=1, tzinfo=pytz.utc)
+    end = pd.Timestamp(year=2023, month=1, day=13, hour=23, tzinfo=pytz.utc)
+    time_index = pd.date_range(start=start, end=end, freq="15min")
+
     simulation_config = configs.SimulationConfiguration(
-        n_time_steps=96,
-        step_size=datetime.timedelta(minutes=15),
-        start_time=datetime.datetime(2023, 6, 24, tzinfo=pytz.utc),
+        time_index=time_index,
         coordinator_name=coordination_mechanism,
         sim_tag=f"{coordination_mechanism}",
         use_pv=True,

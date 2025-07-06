@@ -12,7 +12,7 @@ class GridFeeCoordinator(coordinator.Coordinator):
         super().__init__(grecco_sim)
 
     @property
-    def trafo_p_lim(self) -> float:
+    def trafo_p_lim_kw(self) -> float:
 
         trafo = [x for x in self.sim_grid.capacities.keys()
                  if "transformer" in x.lower()]
@@ -21,7 +21,7 @@ class GridFeeCoordinator(coordinator.Coordinator):
             msg = "Exactly one transformer is assumed."
             raise NotImplementedError(msg)
 
-        return self.sim_grid.capacities[trafo[0]]
+        return self.sim_grid.capacities[trafo[0]] * 1000
 
     @property
     def max_market_iterations(self) -> int:
@@ -90,7 +90,6 @@ class CoordinatorDailyGridFee(GridFeeCoordinator):
         self.sim_result.log_market(fee_signals, schedules, self.t, 0)
 
         for k in range(1, self.max_market_iterations):
-            # ToDo: Implement feeder-specific optimization.
             fee_signals = self.get_fee_signals(schedules)
 
             if all([s.is_empty for s in fee_signals.values()]):
@@ -114,9 +113,12 @@ class CoordinatorDailyGridFee(GridFeeCoordinator):
         current_grid_power = p_grid.sum(axis=0)
 
         # Weight fee signal with parameter alpha.
-        weight = self.sim_config.optimizer_config.alpha
-        lam = np.ones(current_grid_power.shape) * weight
-        lam[current_grid_power < self.trafo_p_lim] = 0.
+        #weight = self.sim_config.optimizer_config.alpha
+        # lam = np.ones(current_grid_power.shape) * weight
+        lam = current_grid_power / self.trafo_p_lim_kw
+        temporal_resolution = lambda x: 0.33 * ((10 / 9) * x) ** 3
+        # lam[current_grid_power < self.trafo_p_lim] = 0.
+        lam = temporal_resolution(lam)
 
         return {sys_id: signals.FirstOrderSignal(mul_lambda=lam)
                 for sys_id in schedules}
@@ -139,13 +141,14 @@ class CoordinatorFeederDependentGridFee(CoordinatorDailyGridFee):
 
         # A feeder is congested if any of its segments is congested.
         feeder_congestion = feeder_congestion.T.groupby(level=0).sum().T
+        temporal_resolution = lambda x: 0.33 * (10/9 * x)**3
 
         # Create signals based on feeder congestion.
         lam = dict()
         for sys_id in schedules:
             bus_name = sys_id.split("_")[-1]
             feeder = self.sim_grid.feeder_map[bus_name]
-            lam[sys_id] = feeder_congestion[feeder]
+            lam[sys_id] = temporal_resolution(feeder_congestion[feeder])
 
         weight = self.sim_config.optimizer_config.alpha
 
@@ -154,6 +157,8 @@ class CoordinatorFeederDependentGridFee(CoordinatorDailyGridFee):
 
 
 class Uncoordinated(GridFeeCoordinator):
-    def get_signals(self, sim_state: dict[str, dict]) -> dict[str, signals.Signal]:
+    def get_signals(self, sim_state: dict[str, dict]) \
+            -> dict[str, signals.Signal]:
+
         return {sys_id: self.default_signal(self.horizon)
                 for sys_id in sim_state}

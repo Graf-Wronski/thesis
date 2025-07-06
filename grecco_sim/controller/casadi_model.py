@@ -34,8 +34,11 @@ class CasadiModel:
         self.p_baseload = dict()
         self.p_inflex_pv = dict()
         self.p_bat = dict()
+        self.p_bat_charge = dict()
+        self.p_bat_discharge = dict()
         self.p_heatpump = dict()
         self.p_ev = dict()
+        self.p_grid = dict()
 
         for sys_id in self.sys_ids:
             self.consumption[sys_id] = casadi.SX(np.zeros((horizon, 1)))
@@ -50,7 +53,7 @@ class CasadiModel:
         # For each node:
         # Build parameters. (Will be filled with forecast / state during run)
         for ems in self.ems_configs.values():
-            self.add_ems_parameters(ems.sys_id)
+            self.add_baseload(ems.sys_id)
 
             if ems.pv:
                 self.add_pv(ems.sys_id, ems.pv)
@@ -63,6 +66,22 @@ class CasadiModel:
 
             if ems.ev_charger:
                 self.add_ev(ems.sys_id, ems.ev_charger)
+
+        # Use constraints to determine feed in and load dynamic.
+        for sys_id in self.sys_ids:
+            var_name = f"p_feed_in_at_{sys_id}"
+            p_feed_in = self.build_state(var_name, bounds=(0., np.infty))
+
+            var_name = f"p_consume_at_{sys_id}"
+            p_consume = self.build_state(var_name, bounds=(0., np.infty))
+
+            var_name = f"p_grid_at_{sys_id}"
+            p_grid = self.build_state(var_name)
+
+            self.set_value(p_feed_in, self.generation[sys_id])
+            self.set_value(p_consume, self.consumption[sys_id])
+            self.set_value(p_grid, p_consume - p_feed_in)
+            self.p_grid[sys_id] = p_grid
 
         # Add top-level objective to slack objectives (see e.g. heat pump).
         self.objective += self.build_objective()
@@ -77,7 +96,7 @@ class CasadiModel:
     def sys_ids(self) -> list[str]:
         return [ems_config.sys_id for ems_config in self.ems_configs.values()]
 
-    def add_ems_parameters(self, sys_id: str) -> None:
+    def add_baseload(self, sys_id: str) -> None:
         """ Base parameters. """
 
         var_name = f"p_baseload_at_{sys_id}"
@@ -85,20 +104,6 @@ class CasadiModel:
         self.p_baseload[sys_id] = p_baseload
         self.consumption[sys_id] += p_baseload
 
-        var_name = f"p_feed_in_at_{sys_id}"
-        p_feed_in = self.build_state(var_name, bounds=(0., np.infty))
-
-        var_name = f"p_consume_at_{sys_id}"
-        p_consume = self.build_state(var_name, bounds=(0., np.infty))
-
-        var_name = f"p_grid_at_{sys_id}"
-        p_grid = self.build_state(var_name)
-
-        # Use constraints to determine feed in and load dynamic.
-        for k in range(self.horizon):
-            self.set_value(p_grid[k], p_consume[k] - p_feed_in[k])
-            self.set_value(p_feed_in[k], self.generation[sys_id][k])
-            self.set_value(p_consume[k], self.consumption[sys_id][k])
 
     def add_pv(self, sys_id: str, config: configs.PVConfig) -> None:
         var_name = f"inflexible_pv_at_{sys_id}"
@@ -119,29 +124,25 @@ class CasadiModel:
 
         var_name = f"p_bat_charge_at_{sys_id}"
         p_bat_charge = self.build_state(var_name, bounds=(0., config.p_inv))
+        self.p_bat_charge[sys_id] = p_bat_charge
 
         var_name = f"p_bat_discharge_at_{sys_id}"
         p_bat_discharge = self.build_state(var_name, bounds=(0., config.p_inv))
+        self.p_bat_discharge[sys_id] = p_bat_discharge
 
         var_name = f"p_bat_at_{sys_id}"
         p_bat = self.build_state(var_name)
         self.p_bat[sys_id] = p_bat
 
-        # Discharged power is discharge power minus efficiency losses.
-        bat_efficiency = config.eff * np.ones(self.horizon)
-        p_bat_discharged = casadi.dot(bat_efficiency, p_bat_discharge)
-
-        self.set_value(p_bat, p_bat_charge - p_bat_discharged)
+        self.set_value(p_bat, p_bat_charge - p_bat_discharge)
 
         self.consumption[sys_id] += p_bat_charge
-        self.generation[sys_id] += p_bat_discharged
+        self.generation[sys_id] += config.eff * p_bat_discharge
 
         # Battery state evolution.
         for k in range(self.horizon):
-            # p = (p_bat_charge[k] * config.eff - p_bat_discharge[k] * (1 /
-            # config.eff))
-            p = p_bat[k] * config.dt_h
-            delta_soc = (p * config.eff / config.capacity)
+            energy = config.eff * p_bat[k]  * config.dt_h
+            delta_soc = energy / config.capacity
             self.set_value(bat_soc[k + 1], bat_soc[k] + delta_soc)
 
     def add_heatpump(self, sys_id: str, config: configs.HeatPumpConfig):

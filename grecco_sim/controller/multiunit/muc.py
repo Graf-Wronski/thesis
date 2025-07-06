@@ -6,9 +6,21 @@ import pandas as pd
 
 from grecco_sim.controller.central.problem import LocalOptimizationProblem
 from grecco_sim.simulator import forecaster
-from grecco_sim.util import type_defs, signals, configs, build
+from grecco_sim.util import type_defs, signals, configs, build, logging
 from grecco_sim.util.type_defs import Schedule
 
+import sys, os
+from contextlib import contextmanager
+
+@contextmanager
+def suppress_stdout():
+    with open(os.devnull, 'w') as devnull:
+        old_stdout = sys.stdout
+        sys.stdout = devnull
+        try:
+            yield
+        finally:
+            sys.stdout = old_stdout
 
 class MultiUnitController:
     def __init__(
@@ -38,8 +50,14 @@ class MultiUnitController:
             market_config=self.market_config,
             now=self.now)
 
+
+
         p = self.mathematical_model.problem
-        self.solver = build.solver(self.opt_pars, p)
+
+        # Usage:
+        with suppress_stdout():
+            self.solver = build.solver(self.opt_pars, p)
+
 
     def step(self):
         # ToDo: step is required for charging processes. A clean solution
@@ -76,7 +94,8 @@ class MultiUnitController:
             now=self.now)
 
         p = self.mathematical_model.problem
-        self.solver = build.solver(self.opt_pars, p)
+        with suppress_stdout():
+            self.solver = build.solver(self.opt_pars, p)
 
         p = dict()
 
@@ -115,7 +134,11 @@ class MultiUnitController:
         x_lb, x_ub = self.mathematical_model.state_bounds
         g_lb, g_ub = self.mathematical_model.constraint_bounds
 
-        solution = self.solver(lbx=x_lb, ubx=x_ub, lbg=g_lb, ubg=g_ub, p=p)
+        try:
+            solution = self.solver(lbx=x_lb, ubx=x_ub, lbg=g_lb, ubg=g_ub, p=p)
+        except RuntimeError as e:
+            logging.write_solver_parameters_to_file(x_lb, x_ub, g_lb, g_ub, p)
+            raise e
 
         p_grid, p_battery, p_heatpump, p_ev = None, None, None, None
 
