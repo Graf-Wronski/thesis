@@ -92,6 +92,7 @@ def get_ev(
     # p = sim_config.ev_capacity_data_path
     # ev_capacity_data = pd.read_csv(p, index_col=0, date_format=Format().date)
     # ToDo: Capacity could be added by extra file.
+    charger_params.loc[:, "p_nom"] = pypsa_df_to_grecco_df(charger_params["p_nom"])
     charger_params.loc[:, "charger_id"] = charger_params["type"]
     charger_params.loc[:, "ev_id"] = charger_params["charger_id"] + "_ev"
     charger_params.loc[:, "capacity"] = 60.0

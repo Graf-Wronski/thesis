@@ -12,6 +12,11 @@ class GridFeeCoordinator(coordinator.Coordinator):
         super().__init__(grecco_sim)
 
     @property
+    def temporal_resolution(self) -> callable:
+        """ Temporal resolution maps congestion on signal strength. """
+        return self.sim_config.temporal_resolution
+
+    @property
     def trafo_p_lim_kw(self) -> float:
 
         trafo = [x for x in self.sim_grid.capacities.keys()

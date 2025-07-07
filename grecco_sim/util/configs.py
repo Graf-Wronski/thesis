@@ -2,7 +2,7 @@ import dataclasses
 import datetime
 import os
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Literal
 
 import pandas as pd
 
@@ -37,7 +37,9 @@ class OptimizerConfiguration:
     rho: float = 0.  # Step size in ADMM and second order.
     mu: float = 0.  # Slack constraint in second order algorithm.
 
-    slack_penalty_thermal: float = 500.  # Penalty for constraint violations.
+    # Penalty for constraint violations: Only affects relaxed constraints.
+    slack_penalty_thermal: float = 500.
+    slack_penalty_ev: float = 500.
 
     # Gurobi.
     gurobi_version: str = "110"  # Tested on gurobi version 110.
@@ -84,24 +86,22 @@ class SimulationConfiguration:
     # Configuration for local optimizers.
     optimizer_config: OptimizerConfiguration
 
-    coordinator_name: str  # out of [central, distributed, none, admm]
-
+    coordinator_name: str
     sim_tag: str  # unique identifier of simulation
 
     # Market configuration has information about supply and feed-in tariffs.
     market_config: MarketConfiguration
+
+    # Coordinator temporal resolution.
+    temporal_resolution: callable = lambda x: 0.33 * ((10 / 9) * x) ** 3
 
     # Path to store simulation output (e.g. time series, analysis results)
     output_dir: Path = Path(__file__).parents[2] / "results" / "default"
 
     # Either [specify step_size, n_time_steps and step_size] or time_index.
     step_size: Optional[datetime.timedelta] = None
-    # Horizon of the simulation. Loaded data is cropped. To start_time + 15min * horizon
     n_time_steps: Optional[int] = None
-    # Intended start time of the simulation
     start_time: Optional[datetime.datetime] = None
-    # Snapshots can be given directly or via n_time_steps, start_time and
-    # step_size
     time_index: Optional[pd.DatetimeIndex] = None
 
     # Use previous signals in scheduling to augment local objective
@@ -125,7 +125,7 @@ class SimulationConfiguration:
 
 
     # State space for heat pumps: discrete ("on-off") or continious
-    heat_pump_model: str = "discrete"
+    heat_pump_model: Literal["discrete", "continous"] = "discrete"
 
     def __post_init__(self):
         # Write output in result directory if no absolute path is given.
@@ -300,11 +300,8 @@ class ChargerAndEVConfig(UnitConfiguration):
 
     # Battery parameters
     capacity: float
-    p_inv: float
-
-    # Arguments with defaults (eff from SynPro Data, TBC)
-    eff: float = 0.93
-    p_lim_ac: float = 11.
+    p_inv: float = 11.0 # kW
+    eff: float = 0.93  # eff from SynPro Data
 
     # Bounds for state of charge
     x_lb: float = 0.1
@@ -314,7 +311,7 @@ class ChargerAndEVConfig(UnitConfiguration):
 
     @property
     def p_lim_effective(self) -> float:
-        return self.eff * self.p_lim_ac
+        return self.eff * self.p_inv
 
 @dataclasses.dataclass
 class ChargingRequest:

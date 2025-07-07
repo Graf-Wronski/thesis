@@ -1,5 +1,6 @@
 from typing import Optional
 
+import numpy as np
 import pandas as pd
 
 from grecco_sim.models import grid
@@ -91,6 +92,8 @@ class Dataloader:
             return None
 
         heat_pump_size = self.grid.hp_params.loc[f"{sys_id}_hp", "p_set"]
+        # Choose initial temperature randomly in [19, 23]
+        initial_temperature = 21 + 4 * (np.random.rand() - 0.5)
 
         return configs.HeatPumpConfig(
             name=sys_id,
@@ -123,8 +126,6 @@ class Dataloader:
 
         if not "ev" in self.grid.units_at[sys_id]:
             return None, None
-
-        pass
 
         charging_requests = []
         charger_id = self.grid.ev_params.loc[f"{sys_id}_ev", "charger_id"]

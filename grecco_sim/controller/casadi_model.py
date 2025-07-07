@@ -218,13 +218,11 @@ class CasadiModel:
         lower_limits = self.build_parameter(var_name, horizon=self.horizon)
 
         var_name = f"p_ev_at_{sys_id}"
-        # ToDo: Why are both values (p_lim_ac, config.p_inv) modelled?
-        max_charge = max(config.p_lim_ac, config.p_inv)
-        p_ev = self.build_state(var_name, bounds=(0., max_charge))
+        p_ev = self.build_state(var_name, bounds=(0., config.p_inv))
         self.p_ev[sys_id] = p_ev
         var_name = f"p_ev_effective_at_{sys_id}"
-        self.consumption[sys_id] += p_ev
 
+        self.consumption[sys_id] += p_ev
         p_ev_effective = self.build_state(var_name, bounds=(0., config.p_inv))
         self.set_value(p_ev_effective, casadi.times(config.eff, p_ev))
 
@@ -232,15 +230,27 @@ class CasadiModel:
         # Calculate: How much demand can I fulfill in future and set lower
         # limit accordingly.
 
+        var_name = f"slack_ev_at_{sys_id}"
+        slack_ev = self.build_state(
+            var_name,
+            bounds=(0, np.infty),
+            horizon=self.horizon)
+
+        penalty_weight = np.ones(self.horizon)
+        penalty_weight *= self.opt_pars.slack_penalty_ev
+
+        slack_penalty = casadi.dot(slack_ev, penalty_weight)
+        self.objective += slack_penalty
+
         for i in range(self.horizon):
             self.add_constraint(
                 name="ev_lower_charging_limits",
-                sx=casadi.sum(p_ev_effective[0:i+1]) - lower_limits[i],
+                sx=casadi.sum(p_ev_effective[0:i+1]) - lower_limits[i] + slack_ev,
                 bounds=(0, np.infty))
 
             self.add_constraint(
                 name="ev_upper_charging_limits",
-                sx=casadi.sum(p_ev_effective[0:i + 1]) - upper_limits[i],
+                sx=casadi.sum(p_ev_effective[0:i + 1]) - upper_limits[i] - slack_ev,
                 bounds=(-np.infty, 0))
 
     @property

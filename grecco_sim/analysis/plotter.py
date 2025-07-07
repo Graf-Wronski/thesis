@@ -61,7 +61,7 @@ class Plotter:
         # self.plot_signal_development()
         # self.plot_market_iterations()
 
-        self.plot_promises()
+        # self.plot_promises()
 
         if self.sim_config.use_batteries:
             self.plot_bat_power()
@@ -118,7 +118,7 @@ class Plotter:
         # Design y-axis limits symmetrically.
         low, high = plt.ylim()
         ax.set_ylim(-max(abs(low), abs(high)), max(abs(low), abs(high)))
-        ax.legend()
+        ax.legend(loc="upper right", title="Legend")
 
         plot.set_two_hours_x_axis(ax)
 

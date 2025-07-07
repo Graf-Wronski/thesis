@@ -4,7 +4,9 @@ import pandas as pd
 from grecco_sim.simulator import dataloader, result, forecaster
 from grecco_sim.util import configs, build
 from grecco_sim.models import sim_node
-
+from grecco_sim.util.console import suppress_stdout
+from wurlitzer import pipes
+import io
 
 class Simulation:
     def __init__(self, sim_config: configs.SimulationConfiguration):

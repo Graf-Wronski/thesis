@@ -1,6 +1,6 @@
 from typing import Union, Any, Optional
 
-from wurlitzer import pipes
+
 import numpy as np
 import pandas as pd
 
@@ -9,7 +9,7 @@ from grecco_sim.util import configs, console
 
 import casadi
 
-import os
+
 
 def solver(
         opt_pars: configs.OptimizerConfiguration,
@@ -30,10 +30,7 @@ def solver(
         solver_options["gurobi"] = {"TimeLimit": 5,
                                     "OutputFlag": 0,
                                     "LogToConsole": 0}
-        with pipes() as (out, err):
-            os.environ['GRB_QUIET'] = '1'
-            # Load Gurobi solver with surpressed c output.
-            return casadi.qpsol("solver", "gurobi", p, solver_options)
+        s = casadi.qpsol("solver", "gurobi", p, solver_options)
 
     elif solver_name == "bonmin":
         solver_options["bonmin"] = {'max_iter': 25}

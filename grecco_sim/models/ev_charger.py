@@ -67,7 +67,7 @@ class EVCharger(model.Model):
         else:
             remaining_capacity = 0.
         max_ac_possible =  (remaining_capacity / self.dt_h) / self.config.eff
-        p_ac = min(max_ac_possible, control["p_ev"], self.config.p_lim_ac)
+        p_ac = min(max_ac_possible, control["p_ev"], self.config.p_inv)
         p_dc = self.config.eff * p_ac
 
         self.ev_connected[self.t] = float(self.active_request is not None)

@@ -19,28 +19,8 @@ class OpMode(Enum):
     MUST_OFF = 3
     FREE = 4
 
-class HeatPumpBase(abc.ABC):
-    """
-    Abstract Base class for heat pump models.
 
-    This class defines an interface for specific heat pump implementations.
-    """
-
-    p_in: float = 0  # electric input power
-    q_out: float = 0  # thermal output
-
-    @abc.abstractmethod
-    def set_operation(self, mode: OpMode, control: float) -> None:
-        """Set the operation mode of the heat pump.
-        
-        Parameters:
-            mode: set mode (mandatory heating/cooling or free operation)
-            control: set a power for control (the specific implementation can transform this (ON/OFF))
-        """
-
-
-
-class HeatPump(HeatPumpBase):
+class HeatPump:
     """
     This model class represents a simple discrete heat pump model. So the heatpump can either be off and deliver no heat/cold 
     or be on and deliver a constant amount of heat/cold. The heat pump is controlled by a simple discrete controller.
@@ -131,7 +111,7 @@ class ThermalSystem(model.Model):
         self.absorbance = self.config.absorbance
         self.irradiance_area = self.config.irradiance_area
 
-        self.heat_pump: HeatPumpBase
+        self.heat_pump: HeatPump
 
         # Import the heat pump database
         hp_db_path = pathlib.Path(__file__).parent.absolute()
@@ -195,32 +175,14 @@ class ThermalSystem(model.Model):
         else:
             return OpMode.FREE
 
-        
-        # Please reintegrate if you want to model cooling
-        # But the way it was integrated just didn't use the on/off external control
-        # if self.mode[self.k - 1] == 1:
-        #     if self.temp[self.k] > self.temp_max_heat:
-        #         self.mode[self.k] = 0
-        #     else:
-        #         self.mode[self.k] = 1
-        # elif self.mode[self.k - 1] == -1:
-        #     if self.temp[self.k] < self.temp_min_cold:
-        #         self.mode[self.k] = 0
-        #     else:
-        #         self.mode[self.k] = -1
-        # elif self.mode[self.k - 1] == 0:
-        #     if self.temp[self.k] < self.temp_min_heat:
-        #         self.mode[self.k] = 1
-        #     elif self.temp[self.k] > self.temp_max_cold:
-        #         self.mode[self.k] = -1
-        #     else:
-        #         self.mode[self.k] = 0
 
     def _evolve(self, control: float):
         """
-        Evolve the thermal system model by one time step using the heat pump model
-        If the heat pump model is "variable-speed", the power is calculated in the set_power_and_mode function
-        and the adjusted schedule self.p_in, a room temperature profile (self.temp) is calculated
+        Evolve the thermal system model by one time step using the heat pump
+        model If the heat pump model is "variable-speed", the power is
+        calculated in the set_power_and_mode function and the adjusted
+        schedule self.p_in, a room temperature profile (self.temp) is
+        calculated
         """
 
         # Determine mode and heat/power of HP

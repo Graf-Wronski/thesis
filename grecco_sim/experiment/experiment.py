@@ -1,7 +1,5 @@
 from pathlib import Path
 
-import numpy as np
-
 from grecco_sim.simulator import simulation
 from grecco_sim.util import configs
 from grecco_sim.experiment import result_table
