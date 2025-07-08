@@ -119,7 +119,7 @@ class SimulationConfiguration:
     use_ev: bool = False
     # EVs need additional data.
     f_name = "test_charging_sessions_2023.csv"
-    charging_process_path: Path = Path(
+    charging_request_path: Path = Path(
         f"/home/carl-wanninger/data/ev/{f_name}")
     ev_capacity_data_path: Optional[Path] = None
 
@@ -238,30 +238,25 @@ class PVConfig(UnitConfiguration):
 
 @dataclasses.dataclass
 class StorageConfig(UnitConfiguration):
-    """Parameter class describing a Battery unit."""
+    p_inv: float  # DC limit of inverter.
 
-    init_soc: float
+    eff: float = 0.95  # Efficiency of battery inverter (charging/discharging).
+    capacity: float = 5.  # Battery capacity in kWh.
 
-    # Battery parameters
-    capacity: float  # Battery capacity in kWh.
-    p_inv: float  # ToDo: What is this - and is it used correctly?
-
-    eff: float = 0.80  # Efficiency of battery charging (Originally: Inverse
-    # for discharging.).
-    p_lim_dc: float = 10.  # ToDo: Where is this used?
-    p_lim_ac: float = 10.  # ToDo: Where is this used?
-    on_off: bool = False
+    init_soc: float = 0.1
 
     x_lb: float = 0.1  # Minimal SOC for battery.
     x_ub: float = 1.0  # Maximal SOC for battery.
 
     unit_type: str = "bat"
 
-    def __post_init__(self):
-        if self.p_inv <= 0.:
-            raise ValueError("Storage power must be greater than 0.")
-        if self.p_lim_ac <= 0.:
-            raise ValueError("Charging limit must be greater than 0.")
+    @property
+    def p_lim_ac(self) -> float:
+        return self.p_inv
+
+    @property
+    def p_lim_dc(self) -> float:
+        return self.eff * self.p_lim_ac
 
 
 @dataclasses.dataclass

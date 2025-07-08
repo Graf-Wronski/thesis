@@ -150,3 +150,7 @@ def get_inflexible_loads(network: pypsa.Network) -> pd.DataFrame:
 def get_heatpumps(network: Network) -> pd.DataFrame:
     """ Extract heat pumps from network. """
     return network.loads[network.loads["carrier"] == "heat_pump"]
+
+def get_ev_chargers(network: Network) -> pd.DataFrame:
+    """ Extract ev chargers from the network. """
+    return network.storages[network.storages[""]]

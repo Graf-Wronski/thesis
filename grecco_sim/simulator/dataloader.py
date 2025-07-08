@@ -97,6 +97,7 @@ class Dataloader:
 
         return configs.HeatPumpConfig(
             name=sys_id,
+            initial_temp=initial_temperature,
             heat_pump_model=self.simulation_config.heat_pump_model,
             market_config=self.simulation_config.market_config,
             dt_h=self.simulation_config.dt_h,
@@ -115,8 +116,6 @@ class Dataloader:
             name=sys_id,
             market_config=self.simulation_config.market_config,
             dt_h=self.dt_h,
-            capacity=5.,
-            init_soc=0.1,
             p_inv=p_nom)
 
     def get_ev_config(self, sys_id) \
@@ -129,7 +128,7 @@ class Dataloader:
 
         charging_requests = []
         charger_id = self.grid.ev_params.loc[f"{sys_id}_ev", "charger_id"]
-        ts_data = self.grid.cp_ts.query("ChargerID == @charger_id")
+        ts_data = self.grid.requests.query("ChargerID == @charger_id")
         for _, row in ts_data.iterrows():
             capacity = row["TargetSoc"] - row["fictive_soc_start"]
             time_index = [x.tz_localize(None) for x in self.time_index]

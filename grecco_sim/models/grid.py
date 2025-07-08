@@ -51,47 +51,21 @@ class Grid:
             self.p_pv_t = p_set.rename(columns=name_dict)
 
         if simulation_config.use_batteries:
-            params, p_set, soc = network_io.get_bat(self.n)
+            params = network_io.get_bss(self.n)
             name_dict = build.id_mapping(params, unit="bat")
             self.bat_params = params.rename(index=name_dict)
 
         if simulation_config.use_heatpumps:
-            params, p_set = network_io.get_hp(self.n)
+            params = network_io.get_hp(self.n)
             name_dict = build.id_mapping(params, unit="hp")
             self.hp_params = params.rename(index=name_dict)
             
         if simulation_config.use_ev:
-            params, cp_ts = network_io.get_ev(self.n, simulation_config)
+            request_path = simulation_config.charging_request_path
+            params, requests = network_io.get_ev(self.n, request_path)
             self.ev_params = params.rename(index=name_dict)
-            # Filter charging processes.
-            for key in ["StartOfProcess", "EndOfProcess"]:
-                cp_ts.loc[:, key] = pd.to_datetime(cp_ts[key])
-            start = self.simulation_config.time_index.min().tz_localize(None)
-            end = self.simulation_config.time_index.max().tz_localize(None)
-            q1 = "(@start <= EndOfProcess) and (@end >= StartOfProcess)"
-            cp_ts = cp_ts.query(q1).copy()
-            q2 = "StartSoc < TargetSoc"
-            cp_ts = cp_ts.query(q2).copy()
-
-            charging_time = cp_ts["EndOfProcess"] - cp_ts["StartOfProcess"]
-            cp_ts.loc[:, "total_time"] = charging_time
-
-            # ChargingProcesses are not always fully in SimulationTime
-            # We use a fictive_soc_start to adapt charge debt.
-
-            # Clip start and end time at simulation time borders.
-            relative_start = cp_ts["StartOfProcess"].clip(lower=start)
-            relative_end = cp_ts["EndOfProcess"].clip(upper=end)
-            cp_ts.loc[:, "relative_start"] = relative_start
-            cp_ts.loc[:, "relative_end"] = relative_end
-            cp_ts.loc[:, "relative_time"] = relative_end - relative_start
-
-            # Reduce charge_debt by assuming that some charging took place.
-            factor = cp_ts["relative_time"] / cp_ts["total_time"]
-            charge_debt = cp_ts.loc[:, "TargetSoc"] - cp_ts.loc[:, "StartSoc"]
-            cp_ts.loc[:, "fictive_soc_start"] = cp_ts["StartSoc"]
-            cp_ts.loc[:, "fictive_soc_start"] += (1 - factor) * charge_debt
-            self.cp_ts = cp_ts
+            self.requests = network_io.preprocess_charging_requests(
+                requests, self.simulation_config)
 
         self.units_at = {sys_id: self._units_at(sys_id)
                          for sys_id in self.sys_ids}

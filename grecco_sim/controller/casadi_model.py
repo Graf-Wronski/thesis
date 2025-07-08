@@ -112,8 +112,6 @@ class CasadiModel:
         self.generation[sys_id] += p_inflex_pv
 
     def add_battery(self, sys_id: str, config: configs.StorageConfig) -> None:
-        # ToDo: p_bat_charge and p_bat_discharge are both constrained by p_inv?
-        #   I overtook this from GrECCo - but does it make sense?
 
         bat_soc = self.build_state(
             f"soc_bat_at_{sys_id}",
@@ -123,11 +121,13 @@ class CasadiModel:
         self.set_value(bat_soc[0], initial_soc)
 
         var_name = f"p_bat_charge_at_{sys_id}"
-        p_bat_charge = self.build_state(var_name, bounds=(0., config.p_inv))
+        charge_bounds = (0., config.p_lim_ac)
+        p_bat_charge = self.build_state(var_name, bounds=charge_bounds)
         self.p_bat_charge[sys_id] = p_bat_charge
 
+        discharge_bounds = (0., config.p_lim_dc)
         var_name = f"p_bat_discharge_at_{sys_id}"
-        p_bat_discharge = self.build_state(var_name, bounds=(0., config.p_inv))
+        p_bat_discharge = self.build_state(var_name, bounds=discharge_bounds)
         self.p_bat_discharge[sys_id] = p_bat_discharge
 
         var_name = f"p_bat_at_{sys_id}"

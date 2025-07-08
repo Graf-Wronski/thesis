@@ -1,10 +1,11 @@
+from pathlib import Path
 from typing import Tuple, Any, Optional
 
 import pandas as pd
 import pypsa
 
 
-from grecco_sim.util import configs, data_io
+from grecco_sim.util import data_io, build, configs
 
 
 def pypsa_df_to_grecco_df(df: pd.DataFrame) -> pd.DataFrame:
@@ -57,46 +58,75 @@ def get_pv(network: pypsa.Network) -> Tuple[pd.DataFrame, pd.DataFrame]:
     
     return pv_params, pv_p_set
 
-def get_bat(network: pypsa.Network) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+def get_bss(network: pypsa.Network) -> pd.DataFrame:
     # ToDo: Focusing on h0_battery seems over specific.
     bat_params = network.storage_units.query("type == 'h0_battery'")
     check_unique(bat_params["bus"], unit_type='bat')
     bat_params.loc[:, "p_nom"] = pypsa_df_to_grecco_df(bat_params["p_nom"])
-    return bat_params, pd.DataFrame(), pd.DataFrame()
+    return bat_params
 
 
-def get_hp(network: pypsa.Network) -> Tuple[pd.DataFrame, pd.DataFrame]:
+def get_hp(network: pypsa.Network) -> pd.DataFrame:
     """ Baseloads are all loads except heat pumps. """
     # ToDo: Would be better to expect something like carrier == "baseload"
     hp_params = network.loads.query("carrier == 'heat_pump'")
     check_unique(hp_params["bus"], unit_type='heat pump')
     hp_params.loc[:, "p_set"] = pypsa_df_to_grecco_df(hp_params["p_set"])
 
-    return hp_params, pd.DataFrame()
+    return hp_params
 
 
-def get_ev(
-        network: pypsa.Network,
-        sim_config: configs.SimulationConfiguration) -> (
+def get_ev(network: pypsa.Network, charging_process_path: Path) -> (
         Tuple[pd.DataFrame, pd.DataFrame]):
 
     # Unidirectional EVs should be declared as loads, not as storages.
 
-    charging_processes = pd.read_csv(sim_config.charging_process_path)
-
+    charging_processes = pd.read_csv(charging_process_path)
     query = network.storage_units["type"].str.contains("charger")
     charger_params = network.storage_units[query].copy()
     check_unique(charger_params["bus"], unit_type='ev_charger')
 
-    # Add EV params.
-    # p = sim_config.ev_capacity_data_path
-    # ev_capacity_data = pd.read_csv(p, index_col=0, date_format=Format().date)
     # ToDo: Capacity could be added by extra file.
     charger_params.loc[:, "p_nom"] = pypsa_df_to_grecco_df(charger_params["p_nom"])
     charger_params.loc[:, "charger_id"] = charger_params["type"]
     charger_params.loc[:, "ev_id"] = charger_params["charger_id"] + "_ev"
     charger_params.loc[:, "capacity"] = 60.0
-    charger_params.index = "sys_at_bus_" + charger_params["bus"] + "_ev"
+    charger_params.index = build.sys_id(charger_params["bus"]) + "_ev"
 
     return charger_params, charging_processes
 
+
+def preprocess_charging_requests(
+        request_ts: pd.DataFrame,
+        simulation_config: configs.SimulationConfiguration) -> pd.DataFrame:
+
+    # Filter charging processes.
+    for key in ["StartOfProcess", "EndOfProcess"]:
+        request_ts.loc[:, key] = pd.to_datetime(request_ts[key])
+    start = simulation_config.time_index.min().tz_localize(None)
+    end = simulation_config.time_index.max().tz_localize(None)
+    q1 = "(@start <= EndOfProcess) and (@end >= StartOfProcess)"
+    request_ts = request_ts.query(q1).copy()
+    q2 = "StartSoc < TargetSoc"
+    request_ts = request_ts.query(q2).copy()
+
+    charging_time = request_ts["EndOfProcess"] - request_ts["StartOfProcess"]
+    request_ts.loc[:, "total_time"] = charging_time
+
+    # ChargingProcesses are not always fully in SimulationTime
+    # We use a fictive_soc_start to adapt charge debt.
+
+    # Clip start and end time at simulation time borders.
+    relative_start = request_ts["StartOfProcess"].clip(lower=start)
+    relative_end = request_ts["EndOfProcess"].clip(upper=end)
+    request_ts.loc[:, "relative_start"] = relative_start
+    request_ts.loc[:, "relative_end"] = relative_end
+    request_ts.loc[:, "relative_time"] = relative_end - relative_start
+
+    # Reduce (charge) "debt" by assuming that some charging took place.
+    factor = request_ts["relative_time"] / request_ts["total_time"]
+    debt = request_ts.loc[:, "TargetSoc"] - request_ts.loc[:, "StartSoc"]
+    request_ts.loc[:, "fictive_soc_start"] = request_ts["StartSoc"]
+    request_ts.loc[:, "fictive_soc_start"] += (1 - factor) * debt
+
+    return request_ts
