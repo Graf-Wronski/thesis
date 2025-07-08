@@ -134,7 +134,7 @@ class GraphBuilder:
                 # Edge between source and slack with arbitrary high capacity.
                 # ToDo: Slack can also serve as sink.
                 if self.config.slack_as_source:
-                    edge_source_slack = (source_idx, node0_idx, 1000*capacity)
+                    edge_source_slack = (source_idx, node0_idx, 1000* capacity)
                     weighted_edges.append(edge_source_slack)
                 else:
                     msg = "Slack as sink not implemented, yet."

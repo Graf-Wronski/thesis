@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from typing import Optional
+from grecco_sim.util import configs
 
 
 @dataclass
@@ -12,6 +13,8 @@ class SamplerConfiguration:
 
 @dataclass
 class PushRelabelConfiguration:
+    sim_config: configs.SimulationConfiguration
+
     verbose: bool = False
     slack_as_source: bool = True
     conversion_order: int = 2
