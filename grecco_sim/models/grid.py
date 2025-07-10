@@ -9,7 +9,7 @@ import pypsa
 
 
 from grecco_sim.util import configs, network_io, build
-from thesis.graph.utils import network
+from grecco_sim.graph.utils import network
 
 logging.getLogger("pypsa").setLevel(logging.WARNING)
 

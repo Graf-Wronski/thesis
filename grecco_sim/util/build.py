@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 
 from grecco_sim.coordinator import first_order, central
-from grecco_sim.util import configs, console
+from grecco_sim.util import configs
 
 import casadi
 

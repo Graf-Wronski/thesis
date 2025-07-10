@@ -3,7 +3,7 @@ from pathlib import Path
 from grecco_sim.simulator import simulation
 from grecco_sim.util import configs
 from grecco_sim.experiment import result_table
-from thesis.graph.utils import network
+from grecco_sim.graph.utils import network
 
 
 class Experiment:

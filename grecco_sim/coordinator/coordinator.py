@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 
 from grecco_sim.util import type_defs
-from thesis.graph.utils import network
+from grecco_sim.graph.utils import network
 
 
 class Coordinator:
