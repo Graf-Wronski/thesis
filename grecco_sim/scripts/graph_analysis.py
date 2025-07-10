@@ -26,8 +26,8 @@ optimizer_config = configs.OptimizerConfiguration(
     horizon=12,
     solver_name="osqp")
 
-start = pd.Timestamp(year=2023, month=1, day=13, hour=4)
-end = pd.Timestamp(year=2023, month=1, day=13, hour=6)
+start = pd.Timestamp(year=2023, month=1, day=13, hour=12)
+end = pd.Timestamp(year=2023, month=1, day=13, hour=14)
 time_index = pd.date_range(start=start, end=end, freq="15min")
 
 simulation_config = configs.SimulationConfiguration(

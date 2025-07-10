@@ -21,4 +21,4 @@ class Format:
         self.timestep = pd.Timedelta(minutes=15)
 
         # The main directory for all sorts of data.
-        self.data_root = Path("/home/carl-wanninger/data")
+        self.data_root = Format().data_root

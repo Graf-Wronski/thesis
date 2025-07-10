@@ -78,7 +78,7 @@ class TimeSeriesSampler:
 class TimeSeriesDB:
     def __init__(self, date: datetime):
         self.date = date
-        p_weather = Path("/home/carl-wanninger/data/weather")
+        p_weather = Format().data_root / "weather"
         weather = pd.read_csv(p_weather / f"{date.year}.csv")
         weather.index = pd.to_datetime(weather.index)
         self.weather = weather[weather.index.date == date]

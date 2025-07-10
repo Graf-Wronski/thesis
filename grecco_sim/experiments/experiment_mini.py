@@ -1,11 +1,12 @@
 import datetime
 
+from grecco_sim.graph.utils.format import Format
 from grecco_sim.util import configs
 from pathlib import Path
 
 from grecco_sim.experiment.experiment import Experiment
 
-data_root = Path("/home/carl-wanninger/data")
+data_root = Format().data_root
 grid_path = data_root / "sample_grids" / "lv_minimal_1"
 weather_data_path =  data_root / "weather" / "test" / "pvgis_2016_00.csv"
 

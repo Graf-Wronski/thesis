@@ -122,7 +122,7 @@ def get_p_transmission_mw(network: Network) -> pd.DataFrame:
 
 def get_inflexible_loads(network: pypsa.Network) -> pd.DataFrame:
     """ Extract inflexible loads from network. """
-    return network.loads[network.loads["carrier"] == "inflex"]
+    return network.loads[network.loads["carrier"] == "baseload"]
 
 def get_heatpumps(network: Network) -> pd.DataFrame:
     """ Extract heat pumps from network. """
@@ -131,3 +131,34 @@ def get_heatpumps(network: Network) -> pd.DataFrame:
 def get_ev_chargers(network: Network) -> pd.DataFrame:
     """ Extract ev chargers from the network. """
     return network.storages[network.storages[""]]
+
+def get_inflexible_generations(network: pypsa.Network) -> pd.DataFrame:
+    """ Extract inflexible loads from network. """
+    return network.generators[network.generators["carrier"] == "solar"]
+
+def get_inflexible_net_loads(network: pypsa.Network) -> pd.DataFrame:
+    # Step 1: Get time series data
+    loads_ts = network.loads_t.p_set  # Load time series: columns are load
+    # names
+    gens_ts = network.generators_t.p_set  # Generation time series: columns are generator names
+
+    # Step 2: Map load/generator names to buses
+    load_bus_map = network.loads['bus']  # Series: index = load name, value = bus
+    gen_bus_map = network.generators[
+        'bus']  # Series: index = generator name, value = bus
+
+    # Step 3: Sum loads per bus
+    load_ts_bus = loads_ts.groupby(load_bus_map, axis=1).sum()
+
+    # Step 4: Sum generation per bus
+    gen_ts_bus = gens_ts.groupby(gen_bus_map, axis=1).sum()
+
+    # Step 5: Align both DataFrames and compute net load
+    # Fill missing buses with 0s before subtraction
+    all_buses = load_ts_bus.columns.union(gen_ts_bus.columns)
+    load_ts_bus = load_ts_bus.reindex(columns=all_buses, fill_value=0)
+    gen_ts_bus = gen_ts_bus.reindex(columns=all_buses, fill_value=0)
+
+    net_load_ts = load_ts_bus - gen_ts_bus
+
+    return net_load_ts

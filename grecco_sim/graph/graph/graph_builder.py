@@ -10,7 +10,7 @@ from grecco_sim.graph.graph.push_relabel import Preflow
 from grecco_sim.graph.utils.config import PushRelabelConfiguration
 from grecco_sim.util import network_io, configs
 from grecco_sim.graph.utils.network import get_p_capacity_mw, get_inflexible_loads, \
-    get_heatpumps
+    get_heatpumps, get_inflexible_net_loads
 
 import inspect
 
@@ -42,16 +42,9 @@ class GraphBuilder:
         return self.graph_id_to_grid_id[graph_id]
 
     def get_graph_id(self, grid_id: str, t: Optional[Timestamp] = None) -> int:
-        """ For each time step, each grid object is represented by a node. """
+        """ For each time step, a node represents each grid object. """
         if t is not None:
-            try:
-                return self.grid_id_to_graph_id[grid_id][t]
-            except TypeError as e:
-                print(grid_id, t)
-                raise e
-            except KeyError as e:
-                print(grid_id, t)
-                raise e
+            return self.grid_id_to_graph_id[grid_id][t]
         else:
             return self.grid_id_to_graph_id[grid_id]
 
@@ -94,18 +87,18 @@ class GraphBuilder:
         n = n.copy()
         n.set_snapshots(self.sim_config.time_index)
 
-        # Add meta source node. It will provide all energy produced.
+        # Add meta-source node. It will provide all energy produced.
         self.add_vertex('Source')
         source_idx = self.get_graph_id('Source')  # Should be 0.
 
-        # Add meta sink node. It will suck in all energy consumed.
+        # Add meta-sink node. It will suck in all energy consumed.
         self.add_vertex('Sink')
         sink_idx = self.get_graph_id('Sink') # Should be 1.
 
         node_description = {}
 
         weighted_edges = []
-        # For graph algorithm we treat capacities as int.
+        # For graph algorithm, we treat capacities as int.
         capacities = get_p_capacity_mw(n)
 
         # Base graph: Extract buses and lines.
@@ -145,21 +138,26 @@ class GraphBuilder:
                     msg = "Slack as sink not implemented, yet."
                     raise NotImplementedError(msg)
 
-
         # Add inflexible loads.
         inflexible_loads = get_inflexible_loads(n)
         if len(inflexible_loads) != len(inflexible_loads["bus"].unique()):
             msg = "Inflexible loads are assumed to have unique bus."
             raise NotImplementedError(msg)
 
+        inflexible_net_loads = get_inflexible_net_loads(n)
+
         for idx, load in inflexible_loads.iterrows():
             for t in n.snapshots:
-                # Each load gets its own node that is attached to resp. bus.
-                load_idx = self.add_vertex(str(idx), t)
+                # Each load gets its own node attached to resp. bus.
+                # load_idx = self.add_vertex(str(idx), t)
                 bus_idx = self.get_graph_id(load.bus, t)
-                load_mw = n.loads_t["p_set"].loc[t, str(idx)]
-                weighted_edges.append((bus_idx, load_idx, load_mw))
-                weighted_edges.append((load_idx, sink_idx, load_mw))
+                load_mw = inflexible_net_loads.loc[t, load.bus]
+
+                if load_mw > 0:
+                    weighted_edges.append((bus_idx, sink_idx, load_mw))
+
+                if load_mw < 0:
+                    weighted_edges.append((source_idx, bus_idx, -load_mw))
 
         # Add battery storage systems.
         storage_systems = network_io.get_bss(n)
@@ -215,7 +213,7 @@ class GraphBuilder:
         for idx, hp in heatpumps.iterrows():
             total_demand = n.loads_t["p"].loc[:, str(idx)].sum()
             if total_demand < 10e-5:
-                total_demand = 10e-5
+                total_demand = 0
 
             for k, t  in enumerate(n.snapshots):
                 # Each load gets its own node that is attached to resp. bus.

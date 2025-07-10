@@ -1,9 +1,11 @@
 from pathlib import Path
 import pandas as pd
 
+from grecco_sim.graph.utils.format import Format
+
 
 def main():
-    data_root = Path("/home/carl-wanninger/data")
+    data_root = Format().data_root
     input_path = data_root / "weather" / "test" / "pvgis_2016_00_download.csv"
     output_path = data_root / "weather" / "test" / "pvgis_2016_00.csv"
 
