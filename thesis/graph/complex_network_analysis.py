@@ -30,10 +30,6 @@ class ComplexNetworkAnalysis:
         max_flow = self.push_relabel.calculate_maximal_flow(self.graph)
         min_cut = self.max_flow_to_min_cut(max_flow)
 
-        n = self.builder.reconstruct(max_flow, self.network)
-        print(((max_flow.load[0, :] - max_flow.load[:, 0]) / 1000**2).sum())
-        print(f"Total load of graph method {n.loads_t['p'].sum().sum()}")
-
         if max_flow.value != min_cut.value:
             msg = "Maximal flow must match minimal cut."
             raise RuntimeError(msg)
@@ -59,7 +55,10 @@ class ComplexNetworkAnalysis:
             t0, t1 = start[1], end[1]
 
             if t0 != t1:
-                raise NotImplementedError
+                if bus0 == bus1:
+                    continue
+                else:
+                    raise NotImplementedError
 
             # If edge supplies a load: no congestion.
             if bus1 in self.network.loads.index:

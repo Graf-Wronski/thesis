@@ -58,18 +58,7 @@ def set_tz_index_to_utc(df: pd.DataFrame) -> pd.DataFrame:
     """
 
 
-    localized_df = df.copy()
-
-    tz_index = pd.DatetimeIndex(df.index)
-
-    if tz_index.tz is None:
-        tz_index = tz_index.tz_localize("utc")
-    else:
-        tz_index = tz_index.tz_convert("utc")
-
-    localized_df.index = tz_index
-
-    return localized_df
+    return df
 
 
 

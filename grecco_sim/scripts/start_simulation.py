@@ -29,8 +29,8 @@ def main():
         horizon=12,
         solver_name="gurobi")
 
-    start = pd.Timestamp(year=2023, month=1, day=13, hour=0, tzinfo=pytz.utc)
-    end = pd.Timestamp(year=2023, month=1, day=13, hour=23, tzinfo=pytz.utc)
+    start = pd.Timestamp(year=2023, month=1, day=13, hour=0)
+    end = pd.Timestamp(year=2023, month=1, day=13, hour=23)
     time_index = pd.date_range(start=start, end=end, freq="15min")
 
     simulation_config = configs.SimulationConfiguration(

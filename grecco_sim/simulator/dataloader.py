@@ -18,7 +18,7 @@ class Dataloader:
             self.simulation_config.weather_data_path,
             index_col=0,
             date_format="%Y-%m-%d %H:%M:%S")
-        self.weather_data = data_io.set_tz_index_to_utc(weather_data)
+        self.weather_data = weather_data
 
         self.grid = grid.Grid(simulation_config)
 

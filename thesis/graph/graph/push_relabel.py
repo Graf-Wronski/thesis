@@ -195,10 +195,17 @@ class PushRelabel:
             - Preflow: A maximal flow. """
 
         self.start_time = time.time()
-
         preflow = Preflow(graph, verbose=self.config.verbose)
 
+        iteration = 0
+
         while True:
+            if iteration % 50_000 == 0:
+                print(f"Current iteration: {iteration}")
+                print(f"Current highest label = {max(preflow.height)}")
+                print(f"Current runtime is {self.current_runtime}.")
+                print(f"Maximal label is {2 * preflow.num_vertices - 1}.")
+
             if preflow.is_flow:
                 return preflow
 
@@ -207,3 +214,4 @@ class PushRelabel:
                 raise RuntimeError(msg)
 
             preflow = self.iterate_flow(preflow)
+            iteration += 1

@@ -4,7 +4,6 @@ from pathlib import Path
 from thesis.graph.utils import config
 
 import datetime
-import pytz
 
 from grecco_sim.util import configs
 from grecco_sim.simulator import simulation
@@ -17,7 +16,7 @@ simplefilter(action="ignore", category=pd.errors.PerformanceWarning)
 timestamp = datetime.datetime.now().strftime("%y%m%d_%H%M")
 
 data_root = Path("/home/carl-wanninger/data/")
-grid_path = data_root / "samples" / "Opfingen" / "six-bus-test-grid_0"
+grid_path = data_root / "samples" / "Opfingen" / "Opfingen_20250705_184425_0"
 weather_data_path =  data_root / "weather" / "2023_dwd.csv"
 
 coordination_mechanism = "transformer_fee"
@@ -26,18 +25,18 @@ optimizer_config = configs.OptimizerConfiguration(
     horizon=12,
     solver_name="osqp")
 
-start = pd.Timestamp(year=2023, month=1, day=13, hour=0)
-end = pd.Timestamp(year=2023, month=1, day=13, hour=23)
+start = pd.Timestamp(year=2023, month=1, day=13, hour=4)
+end = pd.Timestamp(year=2023, month=1, day=13, hour=6)
 time_index = pd.date_range(start=start, end=end, freq="15min")
 
 simulation_config = configs.SimulationConfiguration(
     time_index=time_index,
     coordinator_name=coordination_mechanism,
     sim_tag=f"{coordination_mechanism}",
-    use_pv=False,
+    use_pv=True,
     use_heatpumps=True,
-    use_ev=False,
-    use_batteries=False,
+    use_ev=True,
+    use_batteries=True,
     output_dir=Path("default") / timestamp,
     optimizer_config=optimizer_config,
     grid_data_path=grid_path,
@@ -51,8 +50,14 @@ if __name__ == "__main__":
 
     # Analyze graph structure.
     pr_config = config.PushRelabelConfiguration(
+        max_runtime=60*40,
         sim_config=simulation_config)
     cna = complex_network_analysis.ComplexNetworkAnalysis(sim.grid.n, pr_config)
     graph_congestion_table = cna.run()
-    print("Graph")
+    grecco_sim = Path("/home/carl-wanninger/thesis/grecco_sim")
+    result_path = grecco_sim / "results" / "tables" / "congestion"
+    if not result_path.exists():
+        result_path.mkdir(parents=True)
+    graph_congestion_table.to_csv(result_path / "test.csv")
+    print("Congestion table")
     print(graph_congestion_table.sum())

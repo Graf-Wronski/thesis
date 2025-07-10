@@ -9,6 +9,7 @@ from thesis.graph.graph.flow_graph import FlowNetwork
 from thesis.graph.graph.push_relabel import Preflow
 from thesis.graph.utils.config import PushRelabelConfiguration
 from grecco_sim.util import network_io, configs
+from thesis.graph.utils.graph import is_connected
 from thesis.graph.utils.network import get_p_capacity_mw, get_inflexible_loads, \
     get_heatpumps
 
@@ -26,7 +27,7 @@ class GraphBuilder:
         self.vertices = []
 
     @property
-    def scale_to_kw(self) -> Callable[[float], int]:
+    def scale(self) -> Callable[[float], int]:
         """ Avoid float calculations by scaling up. """
         conversion_factor = 1000 ** self.config.conversion_order
         return lambda x: int(x * conversion_factor)
@@ -44,7 +45,14 @@ class GraphBuilder:
     def get_graph_id(self, grid_id: str, t: Optional[Timestamp] = None) -> int:
         """ For each time step, each grid object is represented by a node. """
         if t is not None:
-            return self.grid_id_to_graph_id[grid_id][t]
+            try:
+                return self.grid_id_to_graph_id[grid_id][t]
+            except TypeError as e:
+                print(grid_id, t)
+                raise e
+            except KeyError as e:
+                print(grid_id, t)
+                raise e
         else:
             return self.grid_id_to_graph_id[grid_id]
 
@@ -99,14 +107,12 @@ class GraphBuilder:
 
         weighted_edges = []
         # For graph algorithm we treat capacities as int.
-        capacities_mw = get_p_capacity_mw(n)
-        capacities = {x: self.scale_to_kw(y)
-                      for x,y in capacities_mw.items()}
+        capacities = get_p_capacity_mw(n)
 
         # Base graph: Extract buses and lines.
-        for bus in n.buses.index:
+        for idx, bus in n.buses.iterrows():
             for t in n.snapshots:
-                self.add_vertex(bus, t)
+                self.add_vertex(str(idx), t)
 
         for idx, line in n.lines.iterrows():
             capacity = capacities[str(idx)]
@@ -122,7 +128,7 @@ class GraphBuilder:
 
         for idx, trafo in n.transformers.iterrows():
             capacity = capacities[str(idx)]
-            if trafo.bus0 != "Slack":
+            if n.buses.loc[trafo.bus0, "control"] != "Slack":
                 raise Warning(f"Slack node is not bus0 of {str(idx)}.")
             for t in n.snapshots:
                 # Add transformer nodes for each timestep.
@@ -140,6 +146,7 @@ class GraphBuilder:
                     msg = "Slack as sink not implemented, yet."
                     raise NotImplementedError(msg)
 
+
         # Add inflexible loads.
         inflexible_loads = get_inflexible_loads(n)
         if len(inflexible_loads) != len(inflexible_loads["bus"].unique()):
@@ -152,11 +159,8 @@ class GraphBuilder:
                 load_idx = self.add_vertex(str(idx), t)
                 bus_idx = self.get_graph_id(load.bus, t)
                 load_mw = n.loads_t["p_set"].loc[t, str(idx)]
-
-                # Load size is depicted as capacity to sink.
-                load_kw = int(self.scale_to_kw(load_mw))
-                weighted_edges.append((bus_idx, load_idx, load_kw))
-                weighted_edges.append((load_idx, sink_idx, load_kw))
+                weighted_edges.append((bus_idx, load_idx, load_mw))
+                weighted_edges.append((load_idx, sink_idx, load_mw))
 
         # Add battery storage systems.
         storage_systems = network_io.get_bss(n)
@@ -203,7 +207,6 @@ class GraphBuilder:
             terminal_edge = (terminal_vertex, sink_idx, capacity)
             weighted_edges.append(terminal_edge)
 
-
         # Add heat pumps.
         heatpumps = network_io.get_hp(n)
         if len(heatpumps) != len(heatpumps["bus"].unique()):
@@ -211,17 +214,17 @@ class GraphBuilder:
             raise NotImplementedError(msg)
 
         for idx, hp in heatpumps.iterrows():
-            max_kw_per_t = self.scale_to_kw(hp.p_set)
-            total_demand = n.loads_t["p"].loc[:, str(idx)].apply(
-                self.scale_to_kw).sum()
+            total_demand = n.loads_t["p"].loc[:, str(idx)].sum()
+            if total_demand < 10e-5:
+                total_demand = 10e-5
 
             for k, t  in enumerate(n.snapshots):
                 # Each load gets its own node that is attached to resp. bus.
                 hp_idx = self.add_vertex(str(idx), t)
                 bus_idx = self.get_graph_id(hp.bus, t)
 
-                # Only max_kw_per_t can be applied per time step.
-                weighted_edges.append((bus_idx, hp_idx, max_kw_per_t))
+                # Only hp.p_set can be applied per time step.
+                weighted_edges.append((bus_idx, hp_idx, hp.p_set))
                 # The load added at each timestep is accumulated at hp node.
                 if k > 0:
                     t_minus_one = n.snapshots[k - 1]
@@ -234,6 +237,7 @@ class GraphBuilder:
             # In the end, the flexible load has to meet the total power.
             weighted_edges.append((hp_idx, sink_idx, total_demand))
 
+
         # Add ev charging requests.
         charging_request_path = self.sim_config.charging_request_path
         ev_chargers, ev_requests = network_io.get_ev(n, charging_request_path)
@@ -241,40 +245,42 @@ class GraphBuilder:
             request_ts=ev_requests,
             simulation_config=self.sim_config)
 
-        for idx, ev_charger in ev_chargers.iterrows():
+        for charger_idx, ev_charger in ev_chargers.iterrows():
             charger_type = ev_charger.charger_id
             requests = ev_requests.query("ChargerID == @charger_type")
-            max_kw_per_t = ev_charger.p_nom * self.config.dt_h
+            max_mw_per_t = ev_charger.p_nom * self.config.dt_h
 
             for _, row in requests.iterrows():
                 capacity = row["TargetSoc"] - row["fictive_soc_start"]
-                time_index = [x.tz_localize(None)
-                              for x in self.sim_config.time_index]
+                time_index = [x for x in self.sim_config.time_index]
                 start_step = time_index.index(row["relative_start"])
                 end_step = time_index.index(row["relative_end"])
 
                 # EV VERTICES
                 for step in range(start_step, end_step + 1):
                     snapshot = time_index[step]
-                    _ = self.add_vertex(str(idx), snapshot)
+                    _ = self.add_vertex(str(charger_idx), snapshot)
 
                 # EV EDGES
                 for step in range(start_step, end_step):
-                    snapshot = time_index[step]
-                    bus_idx = self.get_graph_id(ev_charger.bus, snapshot)
-                    ev_idx_now = self.get_graph_id(ev_charger.index, snapshot)
-                    ev_idx_next = self.get_graph_id(ev_charger.index, snapshot)
-                    weighted_edges.append((bus_idx, ev_idx_now, max_kw_per_t))
+                    t0 = time_index[step]
+                    t1 = time_index[step + 1]
+                    bus_idx = self.get_graph_id(ev_charger.bus, t0)
+                    ev_idx_now = self.get_graph_id(str(charger_idx), t0)
+                    ev_idx_next = self.get_graph_id(str(charger_idx), t1)
+                    weighted_edges.append((bus_idx, ev_idx_now, max_mw_per_t))
                     weighted_edges.append((ev_idx_now, ev_idx_next, capacity))
 
                 # Final vertex is connected to sink.
-                ev_final = self.get_graph_id(ev_charger.index, time_index[-1])
+                t_final = time_index[end_step]
+                ev_final = self.get_graph_id(str(charger_idx), t_final)
                 weighted_edges.append((ev_final, sink_idx, capacity))
 
         n_nodes = len(self.vertices)
         capacities = np.zeros((n_nodes, n_nodes))
+
         for i, j, capacity in weighted_edges:
-            capacities[i, j] = capacity
+            capacities[i, j] = self.scale(capacity)
 
         graph = FlowNetwork(
             vertices=self.vertices,
@@ -296,7 +302,7 @@ class GraphBuilder:
                 load_id = self.get_graph_id(name, t)
                 bus_id = self.get_graph_id(load.bus, t)
                 load_w = flow.load[bus_id, load_id] - flow.load[load_id, bus_id]
-                load_mw = load_w / 1000**2
+                load_mw = load_w / 1000**self.config.conversion_order
                 return load_mw
 
             load_ts = [get_load_mw(t) for t in network.snapshots]
