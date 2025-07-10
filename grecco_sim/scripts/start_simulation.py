@@ -1,9 +1,6 @@
 import pathlib
 import datetime
 import pytz
-import  os
-
-os.environ['GRB_QUIET'] = '1'
 
 from grecco_sim.analysis import plotter
 from grecco_sim.util import configs

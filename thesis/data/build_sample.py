@@ -1,3 +1,4 @@
+import argparse
 import warnings
 
 import pandas as pd
@@ -78,21 +79,22 @@ def build_sample(config: DataConfiguration) -> pypsa.Network:
     return n
 
 if __name__ == "__main__":
-    p_topology = (Path("/home/carl-wanninger/data/topologies")
-                  / "opfingen")
+
+    p_topology = Path("/home/carl-wanninger/data/sample_grids/lv_minimal_1")
 
     data_config = DataConfiguration(
         day=13,
         month=1,
-        topology= p_topology,
+        topology=p_topology,
         ts_data_base="Opfingen",
+        sample_name="six-bus-test-grid",
         pv_quota=0.9,
         bss_quota=0.9,
         hp_quota=0.9,
         ev_quota=0.9,
         seed=17)
     network = build_sample(data_config)
-    network.name = "Sample Network Units 90 %"
+    network.name = "Mini Network Units 90 %"
     network.lpf()
 
     p = Path(f"/home/carl-wanninger/data/samples/{data_config.ts_data_base}")
@@ -103,6 +105,3 @@ if __name__ == "__main__":
         idx += 1
 
     network.export_to_csv_folder((p / f"{data_config.sample_name}_{idx}"))
-
-
-    print(network.loads)

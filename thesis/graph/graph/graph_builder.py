@@ -108,8 +108,8 @@ class GraphBuilder:
             for t in n.snapshots:
                 self.add_vertex(bus, t)
 
-        for line in n.lines.itertuples():
-            capacity = capacities[line.Index]
+        for idx, line in n.lines.iterrows():
+            capacity = capacities[str(idx)]
             for t in n.snapshots:
                 node0_idx = self.get_graph_id(line.bus0, t)
                 node1_idx = self.get_graph_id(line.bus1, t)
@@ -120,10 +120,10 @@ class GraphBuilder:
             msg = "Network is assumed to have exactly one transformer."
             raise NotImplementedError(msg)
 
-        for trafo in n.transformers.itertuples():
-            capacity = capacities[trafo.Index]
+        for idx, trafo in n.transformers.iterrows():
+            capacity = capacities[str(idx)]
             if trafo.bus0 != "Slack":
-                raise Warning(f"Slack node is not bus0 of {trafo.Index}.")
+                raise Warning(f"Slack node is not bus0 of {str(idx)}.")
             for t in n.snapshots:
                 # Add transformer nodes for each timestep.
                 node0_idx = self.get_graph_id(trafo.bus0, t)
@@ -146,12 +146,12 @@ class GraphBuilder:
             msg = "Inflexible loads are assumed to have unique bus."
             raise NotImplementedError(msg)
 
-        for load in inflexible_loads.itertuples():
+        for idx, load in inflexible_loads.iterrows():
             for t in n.snapshots:
                 # Each load gets its own node that is attached to resp. bus.
-                load_idx = self.add_vertex(load.Index, t)
+                load_idx = self.add_vertex(str(idx), t)
                 bus_idx = self.get_graph_id(load.bus, t)
-                load_mw = n.loads_t["p_set"].loc[t, load.Index]
+                load_mw = n.loads_t["p_set"].loc[t, str(idx)]
 
                 # Load size is depicted as capacity to sink.
                 load_kw = int(self.scale_to_kw(load_mw))
@@ -161,7 +161,7 @@ class GraphBuilder:
         # Add battery storage systems.
         storage_systems = network_io.get_bss(n)
 
-        for storage_system in storage_systems:
+        for idx, storage_system in storage_systems.iterrows():
             # ToDo: Storage losses are not modelled.
             # Use StorageConfig for default values.
             signature = inspect.signature(configs.StorageConfig.__init__)
@@ -173,7 +173,7 @@ class GraphBuilder:
 
             max_charge = storage_system.p_nom
             max_discharge = storage_system.p_nom
-            bss_name = storage_system.index
+            bss_name = str(idx)
 
             # Battery storage system vertices
             for snapshot in n.snapshots:
@@ -210,14 +210,14 @@ class GraphBuilder:
             msg = "Heatpumps are assumed to have unique bus."
             raise NotImplementedError(msg)
 
-        for hp in heatpumps.itertuples():
+        for idx, hp in heatpumps.iterrows():
             max_kw_per_t = self.scale_to_kw(hp.p_set)
-            total_demand = n.loads_t["p"].loc[:, hp.Index].apply(
+            total_demand = n.loads_t["p"].loc[:, str(idx)].apply(
                 self.scale_to_kw).sum()
 
             for k, t  in enumerate(n.snapshots):
                 # Each load gets its own node that is attached to resp. bus.
-                hp_idx = self.add_vertex(hp.Index, t)
+                hp_idx = self.add_vertex(str(idx), t)
                 bus_idx = self.get_graph_id(hp.bus, t)
 
                 # Only max_kw_per_t can be applied per time step.
@@ -228,7 +228,7 @@ class GraphBuilder:
                     if not t - t_minus_one == pd.Timedelta(minutes=15):
                         msg = "Delta t is assumed to be 15 minutes"
                         raise NotImplementedError(msg)
-                    past_hp = self.get_graph_id(hp.Index, t_minus_one)
+                    past_hp = self.get_graph_id(str(idx), t_minus_one)
                     weighted_edges.append((past_hp, hp_idx, total_demand))
 
             # In the end, the flexible load has to meet the total power.
@@ -256,7 +256,7 @@ class GraphBuilder:
                 # EV VERTICES
                 for step in range(start_step, end_step + 1):
                     snapshot = time_index[step]
-                    _ = self.add_vertex(ev_charger.Index, snapshot)
+                    _ = self.add_vertex(str(idx), snapshot)
 
                 # EV EDGES
                 for step in range(start_step, end_step):
