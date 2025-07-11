@@ -1,6 +1,7 @@
 from pathlib import Path
 import datetime
 
+from grecco_sim.graph.utils.format import Format
 from grecco_sim.util import configs
 from grecco_sim.simulator import simulation
 
@@ -10,7 +11,7 @@ simplefilter(action="ignore", category=pd.errors.PerformanceWarning)
 
 scenario = "Opfingen"
 topology = "simbench-LV-rural1--2"
-data_root = Path("/home/carl-wanninger/data/")
+data_root = Format().data_root
 month, day = 2, 27
 seed = 3
 
