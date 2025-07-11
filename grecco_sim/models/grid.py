@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 import pypsa
 
+from pathlib import Path
 
 from grecco_sim.util import configs, network_io, build
 from grecco_sim.graph.utils import network
@@ -34,6 +35,13 @@ class Grid:
         self.n.set_snapshots(snapshots=n_index)
 
         print("... Done.")
+
+        if self.simulation_config.transformer_lim:
+            transformer_lim = self.simulation_config.transformer_lim
+            self.n.transformers["capacity"] = transformer_lim
+        if self.simulation_config.feeder_lim:
+            feeder_lim = self.simulation_config.feeder_lim
+            self.n.lines["capacity"] = feeder_lim
 
         system_buses = network_io.get_system_buses(self.n)
         self.sys_ids = [build.sys_id(b) for b in system_buses]
@@ -246,6 +254,9 @@ class Grid:
             raise NotImplementedError("Network is assumed to be connected.")
 
         return self.n.sub_networks["obj"].iloc[0].calculate_PTDF()
+
+    def write(self, p: Path):
+        self.n.export_to_csv_folder(p / "network")
 
     def write_loads(self, state: dict[str, dict], t: int) -> None:
         """ Set grid state from simulation node state. """

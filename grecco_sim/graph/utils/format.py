@@ -2,7 +2,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-
+import os
 
 class Format:
     def __init__(self):
@@ -21,4 +21,7 @@ class Format:
         self.timestep = pd.Timedelta(minutes=15)
 
         # The main directory for all sorts of data.
-        self.data_root = Format().data_root
+        try:
+            self.data_root = Path(os.environ['DATA_ROOT'])
+        except:
+            self.data_root = Path("/home/carl-wanninger/data")

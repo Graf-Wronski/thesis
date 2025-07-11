@@ -16,6 +16,8 @@ class DataConfiguration:
     bss_quota: float
     ev_quota: float
 
+    extended: bool = False
+
     sample_name: str = ""
 
     day: int = 24
@@ -56,4 +58,12 @@ class DataConfiguration:
         start = pd.Timestamp(self.year, self.month, self.day, 0, 0)
         end = pd.Timestamp(self.year, self.month, self.day, 23, 45)
 
-        return pd.date_range(start=start, end=end, freq='15min')
+        if self.extended:
+            date_range = pd.date_range(
+                start=start - pd.Timedelta(hours=12),
+                end=start + pd.Timedelta(hours=12),
+                freq='15min')
+        else:
+            date_range = pd.date_range(start=start, end=end, freq='15min')
+
+        return date_range

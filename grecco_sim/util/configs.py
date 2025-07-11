@@ -31,11 +31,7 @@ class OptimizerConfiguration:
     forecast_type: str = "perfect"
 
     # First order.
-    alpha: float = 0.  # Step size in first order methods.
-
-    # Second order.
-    rho: float = 0.  # Step size in ADMM and second order.
-    mu: float = 0.  # Slack constraint in second order algorithm.
+    alpha: float = 1.
 
     # Penalty for constraint violations: Only affects relaxed constraints.
     slack_penalty_thermal: float = 500.
@@ -93,10 +89,14 @@ class SimulationConfiguration:
     market_config: MarketConfiguration
 
     # Coordinator temporal resolution.
-    temporal_resolution: callable = lambda x: 0.33 * ((10 / 9) * x) ** 3
+    temporal_resolution: Literal["cubic"] = "cubic"
 
     # Path to store simulation output (e.g. time series, analysis results)
     output_dir: Path = Path(__file__).parents[2] / "results" / "default"
+
+    # Capacity limits.
+    feeder_lim: Optional[float] = None
+    transformer_lim: Optional[float] = None
 
     # Either [specify step_size, n_time_steps and step_size] or time_index.
     step_size: Optional[datetime.timedelta] = None

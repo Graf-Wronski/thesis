@@ -1,12 +1,13 @@
+import pickle
 import time
+from pathlib import Path
+
 import pandas as pd
 
 from grecco_sim.simulator import dataloader, result, forecaster
 from grecco_sim.util import configs, build
 from grecco_sim.models import sim_node
-from grecco_sim.util.console import suppress_stdout
-from wurlitzer import pipes
-import io
+
 
 class Simulation:
     def __init__(self, sim_config: configs.SimulationConfiguration):
@@ -42,6 +43,17 @@ class Simulation:
 
     def __str__(self):
         return self.config.sim_tag
+
+    def write(self, p: Path):
+
+        with open(p / "config.pkl", "wb") as handle:
+            pickle.dump(self.config, handle)
+
+        if not(p.exists()):
+            p.mkdir(parents=True)
+
+        self.grid.write(p)
+        self.results.write(p)
 
     @property
     def index(self) -> pd.DatetimeIndex:

@@ -1,22 +1,85 @@
 import warnings
 
+import numpy as np
 import pandas as pd
 import pypsa
+
+from itertools import product
 
 from grecco_sim.data.data_configuration import DataConfiguration
 from grecco_sim.data.time_series_sampler import TimeSeriesSampler
 
+from grecco_sim.graph.utils.format import Format
 from pathlib import Path
+
+
+def simbench_to_pypsa(p: Path):
+    # Create network
+    n = pypsa.Network()
+
+    # --- Load CSVs ---
+    node_df = pd.read_csv(p / "Node.csv", sep=";")
+    line_df = pd.read_csv(p / "Line.csv", sep=";")
+    trafo_df = pd.read_csv(p / "Transformer.csv", sep=";")
+    ext_df = pd.read_csv(p / "ExternalNet.csv", sep=";")
+    load_df = pd.read_csv(p / "Load.csv", sep=";")
+
+    # --- 1. BUSES ---
+    for _, row in node_df.iterrows():
+        name = row["id"]
+        v_nom = row["vmR"] if pd.notna(
+            row["vmR"]) else 0.4  # default if missing
+        n.add("Bus", name=name, v_nom=v_nom)
+
+    # --- 1. BUSES ---
+    for _, row in load_df.iterrows():
+        name = row["id"]
+        bus = row["node"]
+        n.add("Load", name=name, bus=bus, carrier="inflex" ,p_set=0.)
+
+    # --- 2. LINES ---
+    # Assume basic line impedance per km (mocked). Real values should be read from a type library.
+    # For NAYY 4x150SE: approx r=0.206, x=0.08 Ohm/km (LV cable)
+
+    for _, row in line_df.iterrows():
+        n.add("Line",
+              name=row["id"],
+              bus0=row["nodeA"],
+              bus1=row["nodeB"],
+              type="NAYY 4x150 SE",
+              length=np.random.choice([0.1 * x for x in range(1, 8)]))
+        n.lines["loadingMax"] = row["loadingMax"]
+
+    # --- 3. TRANSFORMERS ---
+    # Mock transformer type: 0.16 MVA, 20/0.4 kV, r = 0.01 pu, x = 0.04 pu
+    for _, row in trafo_df.iterrows():
+        n.add("Transformer",
+              name=row["id"],
+              bus0=row["nodeHV"],
+              bus1=row["nodeLV"],
+              s_nom=row["loadingMax"],
+              type="0.4 MVA 20/0.4 kV")
+        n.transformers["loadingMax"] = row["loadingMax"]
+
+    # --- 4. EXTERNAL GRID / SLACK BUS ---
+    for _, row in ext_df.iterrows():
+        node = row["node"]
+        n.add("Generator",
+              name=row["id"],
+              bus=node,
+              control="Slack")
+
+    return n
 
 def build_sample(config: DataConfiguration) -> pypsa.Network:
 
-    # Load topology. Loads are not used, but we need to know where loads are.
-    n = pypsa.Network()
-    n.name = config.sample_name
-
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", category=UserWarning)
-        n.import_from_csv_folder(config.topology, skip_time=True)
+    if "simbench-" in str(config.topology.resolve()):
+        n = simbench_to_pypsa(config.topology)
+    else:
+        with warnings.catch_warnings():
+            n = pypsa.Network()
+            warnings.simplefilter("ignore", category=UserWarning)
+            n.import_from_csv_folder(config.topology)
 
     # noinspection PyTypeChecker
     n.set_snapshots([x for x in config.date_range])
@@ -77,30 +140,61 @@ def build_sample(config: DataConfiguration) -> pypsa.Network:
 
     return n
 
+def main(topology_name: str):
+    p_topology = Format().data_root / "topologies" / topology_name
+
+    seeds = [3, 5, 17, 257, 65537]
+    opfingen = ("Opfingen", [(8, 11), (10, 11), (8, 30), (2, 27)])
+    simbench = ("SimBench", [(5, 27), (12, 25), (5, 11), (3, 8)])
+    shed_50 = {"pv_quota": 0.7, "bss_quota": 0.68, "name": "shed_2050",
+               "hp_quota": 0.68, "ev_quota": 0.78}
+    simbench_34 = {"pv_quota": 0.7, "bss_quota": 0.33, "name": "simbench_2034",
+                   "hp_quota": 0.23, "ev_quota": 0.19}
+
+    iterator = product(seeds, [shed_50, simbench_34], [opfingen, simbench])
+
+    for seed, load_distribution, load_data in iterator:
+        db_name, dates = load_data
+
+        for month, day in dates:
+            sample_name = (f"{p_topology.name}_{db_name}_{month}_{day}_"
+                           f"{load_distribution['name']}_{seed}")
+
+            data_config = DataConfiguration(
+                day=day,
+                month=month,
+                topology=p_topology,
+                ts_data_base=db_name,
+                sample_name=sample_name,
+                pv_quota=load_distribution["pv_quota"],
+                bss_quota=load_distribution["bss_quota"],
+                hp_quota=load_distribution["hp_quota"],
+                ev_quota=load_distribution["ev_quota"],
+                seed=seed)
+
+            sample = build_sample(data_config)
+            sample.name = sample_name
+            sample.lpf()
+
+            p = Format().data_root / "samples" / db_name / load_distribution[
+                'name']
+            if not (p.exists()):
+                p.mkdir(parents=True)
+            sample.export_to_csv_folder(p / f"{sample_name}")
+
+
 if __name__ == "__main__":
+    # Für jede Topologie hätte ich am liebsten gleich Daten mit mehreren
+    # Seeds, mit allen relevanten Tagen, mit SimBench und Opfingen Loads.
+    # Mit SimBench 2034 und SHED 2050 Lastverteilungen.
 
-    p_topology = Path("/home/carl-wanninger/data/sample_grids/lv_minimal_1")
-
-    data_config = DataConfiguration(
-        day=13,
-        month=1,
-        topology=p_topology,
-        ts_data_base="Opfingen",
-        sample_name="six-bus-test-grid",
-        pv_quota=0.9,
-        bss_quota=0.9,
-        hp_quota=0.9,
-        ev_quota=0.9,
-        seed=17)
-    network = build_sample(data_config)
-    network.name = "Mini Network Units 90 %"
-    network.lpf()
-
-    p = Path(f"/home/carl-wanninger/data/samples/{data_config.ts_data_base}")
-    idx = 0
-
-    # Check for existing versions.
-    while (p / f"{data_config.sample_name}_{idx}").exists():
-        idx += 1
-
-    network.export_to_csv_folder((p / f"{data_config.sample_name}_{idx}"))
+    # Offene Fragen: Funktioniert SimBench Data wie gedacht?
+    # Welche Daten sollte ich wählen? (15. jedes Monats)
+    topologies = ["simbench-LV-semiurb4--2",
+                  "simbench-LV-semiurb5--2",
+                  "simbench-LV-urban6--2",
+                  "simbench-LV-rural1--2",
+                  "simbench-LV-rural2--2",
+                  "simbench-LV-rural3--2"]
+    for topology in topologies:
+        main(topology)

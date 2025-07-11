@@ -74,12 +74,14 @@ def get_p_capacity_mw(network: Network) -> Dict[str, float]:
             # Voltage in kV (see https://pypsa.readthedocs.io).
             voltage_kv = nominal_voltage_bus0
 
-        # ToDo: Ensure that line type is specified.
+        # Try getting max loading from lines and transformers.
         # Max current in kA (see https://pypsa.readthedocs.io).
-        max_current_ka = network.line_types.loc[line.type]["i_nom"]
-
-        # Calculate capacity (in mW = kA * kV).
-        capacity_mw = lam * max_current_ka * voltage_kv
+        try:
+            capacity_mw = lam * line.capacity
+        except KeyError:
+            max_current_ka = network.line_types.loc[line.type]["i_nom"]
+            # Calculate capacity (in mW = kA * kV).
+            capacity_mw = lam * max_current_ka * voltage_kv
 
         # Store capacity in both directions.
         capacities[line.Index] = capacity_mw
@@ -88,7 +90,10 @@ def get_p_capacity_mw(network: Network) -> Dict[str, float]:
     # trafo_type = network.transformers.iloc[0]["type"]
     # nominal_apparent_power = network.transformer_types.loc[trafo_type,
     # "s_nom"]
-    nominal_apparent_power = network.transformers.iloc[0]["s_nom"]
+    try:
+        nominal_apparent_power = network.transformers.iloc[0]["capacity"]
+    except KeyError:
+        nominal_apparent_power = network.transformers.iloc[0]["s_nom"]
     transformer_capacity = lam * nominal_apparent_power
     capacities[network.transformers.index[0]] = transformer_capacity
 

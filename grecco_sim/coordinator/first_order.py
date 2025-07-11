@@ -2,7 +2,7 @@ import numpy as np
 from typing import Dict, Any
 
 from grecco_sim.coordinator import coordinator
-from grecco_sim.util import signals, type_defs
+from grecco_sim.util import signals, type_defs, build
 
 
 class GridFeeCoordinator(coordinator.Coordinator):
@@ -14,13 +14,13 @@ class GridFeeCoordinator(coordinator.Coordinator):
     @property
     def temporal_resolution(self) -> callable:
         """ Temporal resolution maps congestion on signal strength. """
-        return self.sim_config.temporal_resolution
+        return build.tempora_resolution(self.sim_config.temporal_resolution)
 
     @property
     def trafo_p_lim_kw(self) -> float:
 
         trafo = [x for x in self.sim_grid.capacities.keys()
-                 if "transformer" in x.lower()]
+                 if ("transformer" in x.lower() or "trafo" in x.lower())]
 
         if len(trafo) != 1:
             msg = "Exactly one transformer is assumed."
@@ -155,9 +155,7 @@ class CoordinatorFeederDependentGridFee(CoordinatorDailyGridFee):
             feeder = self.sim_grid.feeder_map[bus_name]
             lam[sys_id] = temporal_resolution(feeder_congestion[feeder])
 
-        weight = self.sim_config.optimizer_config.alpha
-
-        return {sys_id: signals.FirstOrderSignal(weight * lam[sys_id])
+        return {sys_id: signals.FirstOrderSignal(lam[sys_id])
                 for sys_id in schedules}
 
 

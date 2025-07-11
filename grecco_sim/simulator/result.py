@@ -1,4 +1,4 @@
-import functools
+from pathlib import Path
 from typing import Optional
 
 import numpy as np
@@ -6,6 +6,7 @@ import pandas as pd
 
 from grecco_sim.models import sim_node
 from grecco_sim.util import configs
+
 
 class SimulationResult:
     """ A class to store and interpret simulation results. """
@@ -131,3 +132,46 @@ class SimulationResult:
         # Localized tz data annoys while plotting.
         df.index = df.index.tz_localize(None)
         return df
+
+    def write(self, p: Path):
+        # Write loads for all units.
+        self.state_ts().to_csv(p / "state_ts.csv")
+        self.state_ts("baseload").to_csv(p / "baseload.csv")
+
+        if self.config.use_pv:
+            self.state_ts("pv").to_csv(p / "pv.csv")
+
+        # Write soc data for BSS.
+        if self.config.use_batteries:
+            self.state_ts("bat").to_csv(p / "bss.csv")
+            self.state_ts("soc").to_csv(p / "soc.csv")
+
+        # Write temperature data for heat pumps.
+        if self.config.use_heatpumps:
+            self.state_ts("hp").to_csv(p / "hp.csv")
+            self.state_ts("temp").to_csv(p / "temperature.csv")
+
+        # Write request data for EV.
+        if self.config.use_ev:
+            self.state_ts("ev").to_csv(p / "ev.csv")
+
+        # Write fee data for households.
+        if self.config.coordinator_name in ["feeder_fee", "transformer_fee"]:
+            signal_df = pd.DataFrame({key: val[:, -1, 0].tolist()
+                                      for key, val in self.signals.items()})
+            signal_df.to_csv(p / "realized_signals.csv")
+            signal_shape = next(iter(self.signals.values())).shape
+
+            if not (p / "signals").exists():
+                (p / "signals").mkdir()
+                for i in range(signal_shape[1]):
+                    for j in range(signal_shape[2]):
+                        signal_df = pd.DataFrame({key: val[:, i, j].tolist()
+                                                  for key, val in
+                                                  self.signals.items()})
+                        file_name =  f"market_{i}_horizon_{j}.csv"
+                        signal_df.to_csv(p / "signals" / file_name)
+
+        
+
+

@@ -132,3 +132,10 @@ def cummulative_ev_lims(
             upper_limits[i] = upper_limits[i - 1] + max_add
 
     return lower_limits, upper_limits
+
+
+def temporal_resolution(name: str) -> callable:
+    if name == "cubic":
+        return lambda x: 0.33 * ((10 / 9) * x) ** 3
+    else:
+        raise NotImplementedError("Unknown temporal resolution.")

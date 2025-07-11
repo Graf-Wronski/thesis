@@ -66,6 +66,8 @@ class FirstOrderSignal(Signal):
     def validate(self) -> None:
         if self.mul_lambda.ndim != 1:
             raise ValueError("Lambda must be one dimensional array.")
+    def __post_init__(self):
+        self.mul_lambda = np.clip(self.mul_lambda, a_min=-3, a_max=3)
 
 
 @dataclasses.dataclass
