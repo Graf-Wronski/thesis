@@ -8,4 +8,11 @@ pypsa==0.28.0
 python-dateutil==2.8.2
 simbench==1.5.3
 tqdm==4.66.4
-seaborn
+seaborn~=0.13.2
+grecco_sim~=0.1.0
+setuptools~=78.1.1
+pytz~=2025.2
+wurlitzer~=3.1.1
+scikit-learn~=1.7.0
+scipy~=1.13.1
+Cartopy~=0.24.1

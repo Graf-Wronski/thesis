@@ -40,7 +40,7 @@ def main():
 
     optimizer_config = configs.OptimizerConfiguration(
         horizon=12,
-        solver_name="osqp")
+        solver_name="ipopt")
 
     # time_index = grid.snapshots
     # start = pd.Timestamp(year=2023, month=1, day=13, hour=0)

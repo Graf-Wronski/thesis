@@ -46,11 +46,11 @@ class Simulation:
 
     def write(self, p: Path):
 
-        with open(p / "config.pkl", "wb") as handle:
-            pickle.dump(self.config, handle)
-
         if not(p.exists()):
             p.mkdir(parents=True)
+
+        with open(p / "config.pkl", "wb") as handle:
+            pickle.dump(self.config, handle)
 
         self.grid.write(p)
         self.results.write(p)

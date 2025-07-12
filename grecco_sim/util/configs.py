@@ -114,9 +114,9 @@ class SimulationConfiguration:
     use_pv: bool = True
 
     # Decide which flexibilities are to be used during Simulation.
-    use_heatpumps: bool = False  # Heatpumps are exported from PyPSA grid.
-    use_batteries: bool = False  # Batteries are exported from PyPSA grid.
-    use_ev: bool = False
+    use_heatpumps: bool = True  # Heatpumps are exported from PyPSA grid.
+    use_batteries: bool = True  # Batteries are exported from PyPSA grid.
+    use_ev: bool = True
     # EVs need additional data.
     f_name = "test_charging_sessions_2023.csv"
     charging_request_path: Path = Path(

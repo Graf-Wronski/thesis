@@ -20,8 +20,20 @@ class Format:
         # The time difference between two snapshots.
         self.timestep = pd.Timedelta(minutes=15)
 
-        # The main directory for all sorts of data.
+        # The main directory for all sorts of input data.
         try:
             self.data_root = Path(os.environ['DATA_ROOT'])
         except:
             self.data_root = Path("/home/carl-wanninger/data")
+        if not self.data_root.exists():
+            self.data_root.mkdir()
+
+        # The main directory for all sorts of output data.
+        try:
+            self.output_root = Path(os.environ['OUTPUT_ROOT'])
+        except:
+            self.output_root = Path("/home/carl-wanninger/runs")
+        if not self.output_root.exists():
+            self.output_root.mkdir()
+
+
