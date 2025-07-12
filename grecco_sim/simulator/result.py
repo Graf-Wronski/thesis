@@ -134,8 +134,12 @@ class SimulationResult:
         return df
 
     def write(self, p: Path):
-        # Write loads for all units.
+
         self.state_ts().to_csv(p / "state_ts.csv")
+        self.state_ts("p_node").to_csv(p / "p_node.csv")
+        self.state_ts("p_node").sum(axis=1).to_csv(p / "p_trafo.csv")
+
+        # Detailed unit timeseries.
         self.state_ts("baseload").to_csv(p / "baseload.csv")
 
         if self.config.use_pv:

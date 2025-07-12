@@ -16,3 +16,5 @@ wurlitzer~=3.1.1
 scikit-learn~=1.7.0
 scipy~=1.13.1
 Cartopy~=0.24.1
+grecco_sim~=0.1.0
+PyYAML~=6.0.2
