@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 from typing import Optional, Literal
 
+from grecco_sim.graph.utils.format import Format
 import pandas as pd
 
 
@@ -119,8 +120,7 @@ class SimulationConfiguration:
     use_ev: bool = True
     # EVs need additional data.
     f_name = "test_charging_sessions_2023.csv"
-    charging_request_path: Path = Path(
-        f"/home/carl-wanninger/data/ev/{f_name}")
+    charging_request_path: Path = Format().data_root / "ev" / f_name
     ev_capacity_data_path: Optional[Path] = None
 
 

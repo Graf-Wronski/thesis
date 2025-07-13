@@ -48,7 +48,7 @@ def main():
     # time_index = pd.date_range(start=start, end=end, freq="15min")
     dates = pd.read_csv(grid_path / "snapshots.csv", index_col=0)["snapshot"]
     time_index = pd.date_range(start=dates.iloc[0],
-                               end=dates.iloc[4],
+                               end=dates.iloc[-1],
                                freq="15min")
 
     simulation_config = configs.SimulationConfiguration(

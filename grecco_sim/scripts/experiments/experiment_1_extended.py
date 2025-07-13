@@ -24,22 +24,28 @@ coordination_mechanism = "transformer_fee"
 scenario = "Opfingen"
 load_distribution = "shed_2050"
 
-param_grid = {
-    "solver": ["gurobi", "osqp"],
+param_dict = {
     "seed": [3, 5, 17, 257, 65537],
     "topology": ["simbench-LV-rural1--2"],
     "heat_pump_model": ["discrete", "continous"],
-    "horizon": [5, 10, 15, 20, 25],
+    "horizon": [30, 35, 40, 45],
     "date": ["02_27", "08_11", "08_30", "10_11"]}
 
-param_grid = list(ParameterGrid(param_grid))
+
+param_dict["solver"] = ["osqp"]
+param_grid = list(ParameterGrid(param_dict))
+param_dict["solver"] = ["gurobi"]
+param_grid.extend(list(ParameterGrid(param_dict)))
 
 
 def main(param_index : int):
-    params = copy(param_grid[param_index])
+    if param_index < 400:
+        raise ValueError("Run index must be greater than 400.")
+    # - 400 to regard for previous runs.
+    params = copy(param_grid[param_index - 400])
     meta = copy(params)
 
-    dir_name = f"run_{param_index}"
+    dir_name = f"run_{param_index - 400}"
     for val in params.values():
         dir_name += f"_{val}"
     result_path = output_root / dir_name
