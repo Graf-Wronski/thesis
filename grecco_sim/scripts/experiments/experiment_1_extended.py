@@ -17,7 +17,7 @@ from warnings import simplefilter
 simplefilter(action="ignore", category=pd.errors.PerformanceWarning)
 
 data_root = Format().data_root
-output_root = Format().output_root / "experiment_1"
+output_root = Format().output_root / "experiment_1_correction"
 
 coordination_mechanism = "transformer_fee"
 
@@ -28,24 +28,21 @@ param_dict = {
     "seed": [3, 5, 17, 257, 65537],
     "topology": ["simbench-LV-rural1--2"],
     "heat_pump_model": ["discrete", "continous"],
-    "horizon": [30, 35, 40, 45],
-    "date": ["02_27", "08_11", "08_30", "10_11"]}
+    "horizon": [5, 10, 15, 25],
+    "date": ["08_30"]}
 
 
-param_dict["solver"] = ["osqp"]
-param_grid = list(ParameterGrid(param_dict))
+# param_dict["solver"] = ["osqp"]
+# param_grid = list(ParameterGrid(param_dict))
 param_dict["solver"] = ["gurobi"]
-param_grid.extend(list(ParameterGrid(param_dict)))
+param_grid = list(ParameterGrid(param_dict))
 
 
 def main(param_index : int):
-    if param_index < 400:
-        raise ValueError("Run index must be greater than 400.")
-    # - 400 to regard for previous runs.
-    params = copy(param_grid[param_index - 400])
+    params = copy(param_grid[param_index])
     meta = copy(params)
 
-    dir_name = f"run_{param_index - 400}"
+    dir_name = f"run_{param_index}"
     for val in params.values():
         dir_name += f"_{val}"
     result_path = output_root / dir_name
