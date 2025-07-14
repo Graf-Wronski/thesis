@@ -115,7 +115,7 @@ class Simulation:
 
         print("\n")
         # Powerflow is called once with all values as it is more efficient.
-        self.grid.n.lpf()
+        # self.grid.n.lpf()
 
     def step(self) -> None:
         """ Progress simulation time. """
