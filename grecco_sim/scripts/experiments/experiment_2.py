@@ -78,6 +78,8 @@ def main(param_index : int, solver: str, topology: str):
         feeder_lim, transformer_lim = 0.017, 0.025
     if topology == "simbench-LV-rural2--2":
         feeder_lim, transformer_lim = 0.162, 0.212
+    if topology == "simbench-LV-semiurb5--2":
+        feeder_lim, transformer_lim = 0.170, 0.223
     meta["feeder_lim"], meta["transformer_lim"] = feeder_lim, transformer_lim
 
     simulation_config = configs.SimulationConfiguration(
