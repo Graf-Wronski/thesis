@@ -9,13 +9,17 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 
 
+sns.color_palette("Set2")
 
 def main():
     result_dir = Format().output_root / "experiment_1"
     results_scalar = []
 
-    params = ["ev", "bss", "baseload", "hp", "temperature", "soc", "p_trafo"]
-    # long_df_dict = {param: [] for param in params}
+    params = ["ev", "bss", "baseload", "hp", "temperature", "soc",
+              "p_trafo", "p_bat"]
+    long_df_dict = {param: [] for param in params}
+
+
 
     for run_dir in result_dir.glob("run_*"):
         result_scalar = dict()
@@ -48,24 +52,77 @@ def main():
         result_scalar["average_congestion_size"] = avg_congestion_size
 
         result_scalar["congestion_peak"] = np.max(congestions / transformer_limit)
-        results_scalar.append(result_scalar)
 
-        for param in params:
+        for param in []:
             ts_df = pd.read_csv(run_dir / f"{param}.csv", index_col=0)
-            ts_df["time"] = pd.DatetimeIndex(ts_df.index)
-            long_df = ts_df.melt(id_vars=['time'], var_name='parameter',
+
+            snapshots = pd.read_csv(run_dir / "network" / "snapshots.csv")
+            ts_df["Time"] = pd.DatetimeIndex(snapshots["snapshot"])
+            long_df = ts_df.melt(id_vars=['Time'], var_name='parameter',
                                  value_name='value')
 
             for key, val in meta.items():
                 long_df[key] = val
 
-            # long_df_dict[param].append(long_df)
+            long_df_dict[param].append(long_df)
 
-    plot_dir = Path("/home/carl-wanninger/plots")
+        for param in ["p_bat"]:
+            ts_df = pd.read_csv(
+                run_dir / f"state_ts.csv",
+                usecols=lambda x: x[-8:] == "bat_p_dc",
+                index_col=0)
+
+            snapshots = pd.read_csv(run_dir / "network" / "snapshots.csv")
+            ts_df["Time"] = pd.DatetimeIndex(snapshots["snapshot"])
+            long_df = ts_df.melt(id_vars=['Time'], var_name='parameter',
+                                 value_name='value')
+
+            for key, val in meta.items():
+                long_df[key] = val
+
+            long_df["Event"] = "None"
+
+            long_df_dict[param].append(long_df)
+
+        for param in ["costs"]:
+            ts_df = pd.read_csv(
+                run_dir / f"state_ts.csv",
+                usecols=lambda x: x[-7:] == "p_model")
+
+            ts_df.fillna(0)
+
+            # Define the flex and inflex column identifiers
+            flex_components = ['ev_p_model', 'bat_p_model', 'hp_p_model']
+            inflex_components = ['pv_p_model', 'baseload_p_model']
+
+            # Select columns containing the relevant component strings
+            flex_cols = [col for col in ts_df.columns if
+                         any(fc in col for fc in flex_components)]
+            inflex_cols = [col for col in ts_df.columns if
+                           any(ic in col for ic in inflex_components)]
+
+            signals = pd.read_csv(run_dir / f"realized_signals.csv",index_col=0)
+            signals = signals.mean(axis=1)
+
+            inflex_costs = ts_df[inflex_cols].values.sum(axis=None) * 0.66
+            flex_costs = (signals * ts_df[flex_cols].sum(axis=1)).sum()
+            flex_costs += ts_df[flex_cols].clip(lower=0).values.sum(axis=None) * 0.66
+            flex_costs += ts_df[flex_cols].clip(upper=0).values.sum(axis=None) * 0.33
+
+            costs = inflex_costs + flex_costs
+
+            result_scalar["Costs"] = costs
+            # Create new DataFrame with p_flex and p_inflex
+
+        results_scalar.append(result_scalar)
+
+    plot_dir = Path("/home/carl-wanninger/plots/experiment_1")
     df = pd.DataFrame(results_scalar)
 
-    # for param, df_list in long_df_dict.items():
-    #    long_df_dict[param] = pd.concat(df_list, ignore_index=True)
+    for param, df_list in long_df_dict.items():
+        if len(df_list) == 0:
+            continue
+        long_df_dict[param] = pd.concat(df_list, ignore_index=True)
 
     """Index(['date', 'day', 'end', 'feeder_lim', 'heat_pump_model', 'horizon',
        'month', 'runtime', 'seed', 'solver', 'start', 'topology',
@@ -75,24 +132,25 @@ def main():
       dtype='object')"""
 
     # soc_data = long_df_dict["soc"]
+
     # hp_data = long_df_dict["hp"]
     # ev_data = long_df_dict["ev"]
 
     # p_ev = ev_data[ev_data["parameter"].str.contains("p_ac_set")]
     # sns.boxplot(p_ev[p_ev["value"] > 0], x="time", y="solver", hue="solver")
 
-    df["Total Congestion"] = df["Congestion Events (Count)"] * df[
+    df["Total Congestion (p. u.)"] = df["Congestion Events (Count)"] * df[
         "average_congestion_size"]
-    df["Average Congestion Size"] = df["average_congestion_size"]
-    df["Total Absolute Load"] = df["total_absolute_load"]
+    df["Average Congestion (p. u.)"] = df["average_congestion_size"]
+    df["Total Absolute Load (kW)"] = df["total_absolute_load"]
     df["Total Load"] = df["total_load"]
     df["Heat Pump Model"] = df["heat_pump_model"]
     df["Solver"] = df["solver"]
 
     df.fillna(0)
 
-    for y in ["Total Congestion", "Average Congestion Size",
-              "Total Absolute Load"]:
+    for y in ["Total Congestion (p. u.)", "Average Congestion (p. u.)",
+              "Total Absolute Load (kW)"]:
 
         g = sns.catplot(
             data=df,
@@ -106,6 +164,7 @@ def main():
             col_wrap=2,
             height=4,
             cut=0,
+            palette="Set2",
             density_norm="width",
             aspect=1)
 
@@ -137,31 +196,74 @@ def main():
                         color="black"
                     )
 
-        #        g = sns.FacetGrid(df, col="date", hue="solver")
-        # g.map_dataframe(sns.violinplot, y=y, x="horizon" , split=True)
-        #g.add_legend()
+        plt.savefig(plot_dir / f"{y}.png")
 
-    df["Runtime"] = df["runtime"]
+    df["Runtime (s)"] = df["runtime"]
     df["Horizon"] = df["horizon"]
-    plt.figure()
-    _ = sns.relplot(df, x="Horizon", y="Runtime", hue="Solver", marker="x",
-                    kind="line")
-    plt.show()
 
-    plt.figure()
-    _ = sns.relplot(df, x="Horizon", y="Average Congestion Size", hue="Solver", marker="x",
-                    kind="line")
-    plt.show()
+    if False:
 
-    plt.figure()
-    _ = sns.relplot(df, x="Horizon", y="Congestion Events (Count)", hue="Solver", marker="x",
-                    kind="line")
-    plt.show()
+        _ = sns.relplot(df, x="Horizon", y="Runtime (s)", hue="Solver", marker="x",
+                        kind="line", palette="Set2")
+
+        plt.savefig(plot_dir / f"Runtime.png")
+
+        _ = sns.relplot(df, x="Horizon", y="Average Congestion (p. u.)", hue="Solver", marker="x",
+                        kind="line", palette="Set2")
+
+        plt.savefig(plot_dir / f"Average Congestion.png")
+
+        _ = sns.relplot(df, x="Horizon", y="Total Congestion (p. u.)",
+                        hue="Solver", marker="x",
+                        kind="line", palette="Set2")
+
+        plt.savefig(plot_dir / f"Total Congestion.png")
+
+        _ = sns.relplot(df, x="Horizon", y="Congestion Events (Count)", hue="Solver", marker="x",
+                        kind="line", palette="Set2")
+
+        plt.savefig(plot_dir / f"Congestion Events (Count).png")
+
+    # plt.show()
 
     # The first experiment should answer 3 questions:
     # What are differences between osqp and gurobi? Which should we prefer?
 
     # Does it make a difference if we model heat pumps continously or discrete?
+
+    long_df_dict["p_bat"].loc[
+        long_df_dict["p_bat"]["value"] < 1.0, "Event"] = "Charge"
+    long_df_dict["p_bat"].loc[
+        long_df_dict["p_bat"]["value"] > 1.0, "Event"] = "Discharge"
+
+    f, ax = plt.subplots(figsize=(7, 5))
+    sns.despine(f)
+
+    """data = long_df_dict["p_bat"][long_df_dict["p_bat"]["day"] == 30]
+
+    sns.histplot(
+        data.query("Event == 'Discharge'"),
+        x="Time", hue="solver",
+        multiple="stack",
+        palette="Set2",
+        edgecolor=".3",
+        linewidth=.5)"""
+
+    """_ = sns.boxplot(df, x="date", y="Costs", hue="Solver")"""
+
+    """for date in df["date"].unique():
+        data = df.query("date == @date")
+        plt.figure()
+        _ = sns.lineplot(data, x="Horizon", y="Costs", hue="Solver")"""
+
+    for date in df["date"].unique()[0:2]:
+        data = df.query("date == @date")
+        for y in ["Total Congestion (p. u.)", "Costs"]:
+            plt.figure()
+            sns.boxplot(data, x="seed", y=y, hue="Solver")
+
+    plt.show()
+
 
     # Which horizon should we choose?
 

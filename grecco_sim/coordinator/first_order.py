@@ -1,5 +1,5 @@
 import numpy as np
-from typing import Dict, Any
+from typing import Dict, Any, Callable
 
 from grecco_sim.coordinator import coordinator
 from grecco_sim.util import signals, type_defs, build
@@ -8,13 +8,13 @@ from grecco_sim.util import signals, type_defs, build
 class GridFeeCoordinator(coordinator.Coordinator):
     """Base class for fee-based coordination methods."""
 
-    def __init__(self, grecco_sim: Any):
-        super().__init__(grecco_sim)
+    def __init__(
+            self,
+            grecco_sim: Any,
+            temporal_resolution: Callable[[np.ndarray], np.ndarray]):
 
-    @property
-    def temporal_resolution(self) -> callable:
-        """ Temporal resolution maps congestion on signal strength. """
-        return build.tempora_resolution(self.sim_config.temporal_resolution)
+        super().__init__(grecco_sim)
+        self.temporal_resolution = temporal_resolution
 
     @property
     def trafo_p_lim_kw(self) -> float:
@@ -121,9 +121,8 @@ class CoordinatorDailyGridFee(GridFeeCoordinator):
         #weight = self.sim_config.optimizer_config.alpha
         # lam = np.ones(current_grid_power.shape) * weight
         lam = current_grid_power / self.trafo_p_lim_kw
-        temporal_resolution = lambda x: 0.33 * ((10 / 9) * x) ** 3
         # lam[current_grid_power < self.trafo_p_lim] = 0.
-        lam = temporal_resolution(lam)
+        lam = self.temporal_resolution(lam)
 
         return {sys_id: signals.FirstOrderSignal(mul_lambda=lam)
                 for sys_id in schedules}
@@ -146,14 +145,13 @@ class CoordinatorFeederDependentGridFee(CoordinatorDailyGridFee):
 
         # A feeder is congested if any of its segments is congested.
         feeder_congestion = feeder_congestion.T.groupby(level=0).sum().T
-        temporal_resolution = lambda x: 0.33 * (10/9 * x)**3
 
         # Create signals based on feeder congestion.
         lam = dict()
         for sys_id in schedules:
             bus_name = sys_id.split("_")[-1]
             feeder = self.sim_grid.feeder_map[bus_name]
-            lam[sys_id] = temporal_resolution(feeder_congestion[feeder])
+            lam[sys_id] = self.temporal_resolution(feeder_congestion[feeder])
 
         return {sys_id: signals.FirstOrderSignal(lam[sys_id])
                 for sys_id in schedules}

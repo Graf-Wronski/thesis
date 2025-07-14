@@ -1,5 +1,4 @@
-from typing import Union, Any, Optional
-
+from typing import Union, Any, Optional, Callable
 
 import numpy as np
 import pandas as pd
@@ -31,7 +30,6 @@ def solver(
                                     "OutputFlag": 0,
                                     "LogToConsole": 0}
         s = casadi.qpsol("solver", "gurobi", p, solver_options)
-
     elif solver_name == "bonmin":
         solver_options["bonmin"] = {'max_iter': 25}
         s = casadi.nlpsol("solver", "bonmin", p, solver_options)
@@ -66,11 +64,14 @@ def coordinator(grecco_sim: Any) -> Any:
     name = grecco_sim.config.coordinator_name
 
     if name == "uncoordinated":
-        return first_order.Uncoordinated(grecco_sim)
+        g = None
+        return first_order.Uncoordinated(grecco_sim, g)
     elif name == "transformer_fee":
-        return first_order.CoordinatorDailyGridFee(grecco_sim)
+        g = temporal_resolution(grecco_sim.config.temporal_resolution)
+        return first_order.CoordinatorDailyGridFee(grecco_sim, g)
     elif name == "feeder_fee":
-        return first_order.CoordinatorFeederDependentGridFee(grecco_sim)
+        g = temporal_resolution(grecco_sim.config.temporal_resolution)
+        return first_order.CoordinatorFeederDependentGridFee(grecco_sim, g)
     elif name == "central":
         # Central coordinator requires ems_configs for optimization setup.
         return central.CentralCoordinator(grecco_sim)
@@ -134,8 +135,29 @@ def cummulative_ev_lims(
     return lower_limits, upper_limits
 
 
-def temporal_resolution(name: str) -> callable:
+def temporal_resolution(name: str) -> Callable[[np.ndarray], np.ndarray]:
+    # Corrected by ChatGPT
+
     if name == "cubic":
-        return lambda x: 0.33 * ((10 / 9) * x) ** 3
+        return lambda x: np.clip(0.33 * ((10 / 9) * x) ** 3, a_min=-3, a_max=3)
+
+    elif name == "cubic_restricted":
+        return lambda x: np.clip(0.33 * ((10 / 9) * x) ** 3, a_min=-1, a_max=3)
+
+    elif name == "step":
+        def step_function(x: np.ndarray) -> np.ndarray:
+            result = np.zeros_like(x)
+            result[x >= 1.88] = 3.0
+            result[(x >= 1.49) & (x < 1.88)] = 1.66
+            result[(x >= 0.9) & (x < 1.49)] = 0.33
+            result[(x <= -0.9) & (x > -1.49)] = -0.33
+            result[x <= -1.49] = -1.0
+            return result
+
+        return step_function
+
+    elif name == "gaussian":
+        return lambda x : np.random.normal(loc=0., scale=0.33, size=x.shape)
+
     else:
-        raise NotImplementedError("Unknown temporal resolution.")
+        raise NotImplementedError(f"Unknown temporal resolution {name}.")

@@ -93,10 +93,10 @@ class CentralController:
             if ems.hp:
                 p[f"temp_init_at_{sys_id}"] = state[sys_id]["hp_temp_in"]
 
-            if ems.ev_requests:
+            if ems.ev_charger:
                 lower_lims, upper_lims = build.cummulative_ev_lims(
                     now=self.now,
-                    horizon=len(forecast.solar_irradiance),
+                    horizon=self.horizon,
                     config=ems.ev_charger,
                     request_list=ems.ev_requests)
 
@@ -121,7 +121,7 @@ class CentralController:
 
         for ems_config in self.ems_configs.values():
 
-            p_grid, p_battery, p_heatpump = None, None, None
+            p_grid, p_battery, p_heatpump, p_ev = None, None, None, None
 
             p_grid = get_solution_vals(f"p_grid_at_{ems_config.sys_id}")
 
@@ -133,12 +133,13 @@ class CentralController:
                                                f"{ems_config.sys_id}")
 
             if ems_config.ev_charger:
-                raise NotImplementedError
+                p_ev = get_solution_vals(f"p_ev_at_{ems_config.sys_id}")
 
             schedule = type_defs.Schedule(
                 p_grid=p_grid,
                 p_bat=p_battery,
-                p_hp=p_heatpump)
+                p_hp=p_heatpump,
+                p_ev=p_ev)
 
             schedules[ems_config.sys_id] = schedule
 

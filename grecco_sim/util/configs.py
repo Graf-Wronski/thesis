@@ -82,15 +82,16 @@ class SimulationConfiguration:
 
     # Configuration for local optimizers.
     optimizer_config: OptimizerConfiguration
-
-    coordinator_name: str
+    coordinator_name: Literal["uncoordinated", "transformer_fee",
+                              "feeder_fee", "central"]
     sim_tag: str  # unique identifier of simulation
 
     # Market configuration has information about supply and feed-in tariffs.
     market_config: MarketConfiguration
 
     # Coordinator temporal resolution.
-    temporal_resolution: Literal["cubic"] = "cubic"
+    temporal_resolution: Literal["cubic", "None", "cubic restricted",
+                                 "gaussian", "step"] = "cubic"
 
     # Path to store simulation output (e.g. time series, analysis results)
     output_dir: Path = Path(__file__).parents[2] / "results" / "default"
@@ -168,6 +169,15 @@ class SimulationConfiguration:
             self.start_time = self.time_index[0]
             self.step_size = step_size
             self.n_time_steps = len(self.time_index)
+
+        if self.temporal_resolution == "None":
+            if not self.coordinator_name in ["central", "uncoordinated"]:
+                msg = "Temporal resolution / Coordinator mismatch."
+                raise ValueError(msg)
+        else:
+            if self.coordinator_name in ["central", "uncoordinated"]:
+                msg = "Temporal resolution / Coordinator mismatch."
+                raise ValueError(msg)
 
     @property
     def dt_h(self) -> float:
