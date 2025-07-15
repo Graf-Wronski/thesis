@@ -37,6 +37,10 @@ def main():
             print(f"Bad run: {meta['run_name']}")
             continue
 
+        count = pd.read_csv(run_dir / "baseload.csv", index_col=0,
+                            usecols=lambda x: x[-7:] == "p_model").shape[1]
+        meta["Prosumers (Count)"] = count
+
         result_scalar.update(meta)
 
         trafo_ts = pd.read_csv(run_dir / "p_trafo.csv", index_col=0)
@@ -115,6 +119,8 @@ def main():
 
     plot_dir = Path("/home/carl-wanninger/plots/experiment_2")
     df = pd.DataFrame(results_scalar)
+
+    df["Relative Costs"] = df["Costs"] / df["Prosumers (Count)"]
 
     for param, df_list in long_df_dict.items():
         if len(df_list) == 0:
@@ -246,21 +252,27 @@ def main():
         plt.figure()
         _ = sns.lineplot(data, x="Horizon", y="Costs", hue="Solver")"""
 
-    for date in df["date"].unique()[0:2]:
+    """for date in df["date"].unique()[0:2]:
         data = df.query("date == @date")
         for y in ["Total Congestion (p. u.)", "Costs"]:
             plt.figure()
-            sns.boxplot(data, x="seed", y=y, hue="Solver", palette="Set2")
+            sns.boxplot(data, x="seed", y=y, hue="Solver", palette="Set2")"""
 
-    for date in df["date"].unique():
-        data = df.query("date == @date and Solver == 'gurobi'").copy()
-        data = data.pivot_table(index="Control", columns="Grid",
-                          values="Total Congestion (p. u.)",
-                          aggfunc='mean')
-        plt.figure()
-        sns.heatmap(data, cmap="Reds")
+    for y in ["Total Congestion (p. u.)", "Average Congestion (p. u.)",
+              "Total Absolute Load (kW)", "Congestion Events (Count)",
+              "Relative Costs"]:
 
-    plt.show()
+        for date in df["date"].unique()[2:]:
+            data = df.query("date == @date and Solver == 'osqp'").copy()
+            data = data.fillna(0)
+            data = data.pivot_table(index="Control", columns="Grid",
+                              values=y,
+                              aggfunc='mean')
+            plt.figure()
+            ax = sns.heatmap(data, cmap="cool", annot=True)
+            ax.set(xlabel="", ylabel="")
+            ax.xaxis.tick_top()
+            plt.savefig(plot_dir / f"Heat_{y}_{date}.png")
 
 
     # Which horizon should we choose?
