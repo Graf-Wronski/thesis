@@ -98,13 +98,13 @@ def get_ev(network: pypsa.Network, charging_process_path: Path) -> (
 
 def preprocess_charging_requests(
         request_ts: pd.DataFrame,
-        simulation_config: configs.SimulationConfiguration) -> pd.DataFrame:
+        time_index: pd.DatetimeIndex) -> pd.DataFrame:
 
     # Filter charging processes.
     for key in ["StartOfProcess", "EndOfProcess"]:
         request_ts.loc[:, key] = pd.to_datetime(request_ts[key])
-    start = simulation_config.time_index.min().tz_localize(None)
-    end = simulation_config.time_index.max().tz_localize(None)
+    start = time_index.min().tz_localize(None)
+    end = time_index.max().tz_localize(None)
     q1 = "(@start <= EndOfProcess) and (@end >= StartOfProcess)"
     request_ts = request_ts.query(q1).copy()
     q2 = "StartSoc < TargetSoc"
@@ -130,3 +130,51 @@ def preprocess_charging_requests(
     request_ts.loc[:, "fictive_soc_start"] += (1 - factor) * debt
 
     return request_ts
+
+
+def determine_feeders(n: pypsa.Network) -> dict[str, int]:
+    """ A feeeder is defined as subtree rooted in main bus bar (root bus).
+
+    Returns:
+        dict[str, int]: Map bus or line to feeder index. """
+
+    feeder_map = {}
+
+    # Copy network to avoid side effects.
+    n = n.copy()
+
+    # Remove slack and main bus.
+    if len(n.transformers) != 1:
+        raise ValueError("Multiple transformers not supported.")
+
+    slack = n.transformers.iloc[0]["bus0"]
+    root_bus = n.transformers.iloc[0]["bus1"]
+
+    n.remove("Bus", slack)
+    n.remove("Bus", root_bus)
+    n.remove("Transformer", n.transformers.index[0])
+
+    # Root segments have to be removed for topology determination.
+    # Their feeder is determined later by the second bus.
+    root_segments = []
+
+    for line_idx, line in n.lines.iterrows():
+        if line["bus0"] == root_bus:
+            root_segments.append((line_idx, line["bus1"]))
+            n.remove("Line", line_idx)
+        if line["bus1"] == root_bus:
+            root_segments.append((line_idx, line["bus0"]))
+            n.remove("Line", line_idx)
+
+    n.determine_network_topology()
+
+    for bus_idx, bus_data in n.buses.iterrows():
+        feeder_map[bus_idx] = int(bus_data["sub_network"])
+
+    for line_idx, line_data in n.lines.iterrows():
+        feeder_map[line_idx] = int(line_data["sub_network"])
+
+    for line_idx, bus in root_segments:
+        feeder_map[line_idx] = feeder_map[bus]
+
+    return feeder_map

@@ -73,7 +73,7 @@ class Grid:
             params, requests = network_io.get_ev(self.n, request_path)
             self.ev_params = params.rename(index=name_dict)
             self.requests = network_io.preprocess_charging_requests(
-                requests, self.simulation_config)
+                requests, self.simulation_config.time_index)
 
         self.units_at = {sys_id: self._units_at(sys_id)
                          for sys_id in self.sys_ids}

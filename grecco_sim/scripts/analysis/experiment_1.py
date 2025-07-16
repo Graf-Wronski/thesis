@@ -258,9 +258,10 @@ def main():
 
     for date in df["date"].unique()[0:2]:
         data = df.query("date == @date")
-        for y in ["Total Congestion (p. u.)", "Costs"]:
+        for y in ["Total Congestion (p. u.)", "Costs", "Runtime (s)"]:
             plt.figure()
-            sns.boxplot(data, x="seed", y=y, hue="Solver")
+            sns.boxplot(data, x="Heat Pump Model", y=y, hue="Solver")
+            # x = seed
 
     plt.show()
 

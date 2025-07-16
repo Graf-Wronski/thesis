@@ -20,7 +20,7 @@ class GraphBuilder:
         """ Build a FlowGraph based on a PyPSA.Network with flexible and
         inflexible nodes. """
         self.config = config
-        self.sim_config = config.sim_config
+        self.time_index = config.time_index
         self.graph_id_to_grid_id = {}
         self.grid_id_to_graph_id = {}
         self.vertices = []
@@ -85,7 +85,7 @@ class GraphBuilder:
         self._clear()
 
         n = n.copy()
-        n.set_snapshots(self.sim_config.time_index)
+        n.set_snapshots(self.time_index)
 
         # Add meta-source node. It will provide all energy produced.
         self.add_vertex('Source')
@@ -170,10 +170,11 @@ class GraphBuilder:
             # GrECCo storage systems do not consider full capacity range.
             x_diff = (signature.parameters["x_ub"].default -
                       signature.parameters["x_lb"].default)
-            capacity = signature.parameters["capacity"].default * x_diff
+            capacity = signature.parameters["capacity"].default * x_diff / 1000
+            capacity *= 1 / self.config.dt_h
 
-            max_charge = storage_system.p_nom
-            max_discharge = storage_system.p_nom
+            max_charge = storage_system.p_nom / 1000
+            max_discharge = storage_system.p_nom / 1000
             bss_name = str(idx)
 
             # Battery storage system vertices
@@ -215,13 +216,16 @@ class GraphBuilder:
             if total_demand < 10e-5:
                 total_demand = 0
 
+            # P_set in mW  # ToDo: Data was handeled badly. This is hotfix.
+            p_set = hp.p_set / 1000 if hp.p_set > 1 else hp.p_set
+
             for k, t  in enumerate(n.snapshots):
                 # Each load gets its own node that is attached to resp. bus.
                 hp_idx = self.add_vertex(str(idx), t)
                 bus_idx = self.get_graph_id(hp.bus, t)
 
                 # Only hp.p_set can be applied per time step.
-                weighted_edges.append((bus_idx, hp_idx, hp.p_set))
+                weighted_edges.append((bus_idx, hp_idx, p_set))
                 # The load added at each timestep is accumulated at hp node.
                 if k > 0:
                     t_minus_one = n.snapshots[k - 1]
@@ -236,20 +240,25 @@ class GraphBuilder:
 
 
         # Add ev charging requests.
-        charging_request_path = self.sim_config.charging_request_path
+        charging_request_path = self.config.charging_request_path
         ev_chargers, ev_requests = network_io.get_ev(n, charging_request_path)
         ev_requests = network_io.preprocess_charging_requests(
             request_ts=ev_requests,
-            simulation_config=self.sim_config)
+            time_index=self.time_index)
 
         for charger_idx, ev_charger in ev_chargers.iterrows():
+            p_nom = ev_charger.p_nom
+            # p_nom in mW  # ToDo: Data was handeled badly. This is hotfix.
+            p_nom = p_nom / 1000 if p_nom > 1 else p_nom
+
             charger_type = ev_charger.charger_id
             requests = ev_requests.query("ChargerID == @charger_type")
-            max_mw_per_t = ev_charger.p_nom * self.config.dt_h
+            max_mw_per_t = p_nom * self.config.dt_h
 
             for _, row in requests.iterrows():
                 capacity = row["TargetSoc"] - row["fictive_soc_start"]
-                time_index = [x for x in self.sim_config.time_index]
+                capacity /= self.config.dt_h
+                time_index = [x for x in self.time_index]
                 start_step = time_index.index(row["relative_start"])
                 end_step = time_index.index(row["relative_end"])
 
