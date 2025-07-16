@@ -84,7 +84,7 @@ def get_p_capacity_mw(network: Network) -> Dict[str, float]:
             capacity_mw = lam * max_current_ka * voltage_kv
 
         # Store capacity in both directions.
-        capacities[line.Index] = capacity_mw / 3.05660377358
+        capacities[line.Index] = capacity_mw / 3  # / 3.05660377358
 
     # 2. Transformer capacity (in mW).
     # trafo_type = network.transformers.iloc[0]["type"]

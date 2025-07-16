@@ -257,7 +257,8 @@ class GraphBuilder:
 
             for _, row in requests.iterrows():
                 capacity = row["TargetSoc"] - row["fictive_soc_start"]
-                capacity /= self.config.dt_h
+                # capacity in mW  # ToDo: Data was handeled badly. This is hotfix.
+                capacity = capacity / 1000 if capacity > 1 else capacity
                 time_index = [x for x in self.time_index]
                 start_step = time_index.index(row["relative_start"])
                 end_step = time_index.index(row["relative_end"])

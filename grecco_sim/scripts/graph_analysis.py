@@ -28,7 +28,7 @@ if __name__ == "__main__":
         warnings.simplefilter("ignore", category=UserWarning)
         n.import_from_csv_folder(n_path)
 
-    n.set_snapshots(n.snapshots[0:48])
+    n.set_snapshots(n.snapshots[0:16])
 
     # Analyze graph structure.
     pr_config = config.PushRelabelConfiguration(n.snapshots, max_runtime=60*40)
