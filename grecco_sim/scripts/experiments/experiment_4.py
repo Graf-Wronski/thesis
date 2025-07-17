@@ -85,7 +85,7 @@ def main(param_index : int, solver: str, topology: str, control: str):
     market_config = configs.MarketConfiguration(max_market_iterations=2)
 
     dates = pd.read_csv(grid_path / "snapshots.csv", index_col=0)["snapshot"]
-    start, end = dates.iloc[48], dates.iloc[56]
+    start, end = dates.iloc[0], dates.iloc[-1]
     time_index = pd.date_range(start=start, end=end, freq="15min")
     weather_data_path = data_root / "weather" / f"{time_index[0].year}_dwd.csv"
 
@@ -133,20 +133,19 @@ def main(param_index : int, solver: str, topology: str, control: str):
 
     trafo_sign = np.sign(n.transformers_t["p0"])
 
-    if control == "central":
-        for seed in [17, 65537]:
-            pr_config = PushRelabelConfiguration(
-                n.snapshots,
-                seed=seed,
-                max_runtime=20 * 60,
-                trafo_sign=trafo_sign)
+    for seed in [17, 65537]:
+        pr_config = PushRelabelConfiguration(
+            n.snapshots,
+            seed=seed,
+            max_runtime=20 * 60,
+            trafo_sign=trafo_sign)
 
-            cna = complex_network_analysis.ComplexNetworkAnalysis(n, pr_config)
-            graph_congestion_table, bottleneck = cna.run()
-            graph_congestion_table.to_csv(result_path / f"min_cut_{seed}.csv")
+        cna = complex_network_analysis.ComplexNetworkAnalysis(n, pr_config)
+        graph_congestion_table, bottleneck = cna.run()
+        graph_congestion_table.to_csv(result_path / f"min_cut_{seed}.csv")
 
-            with open(f"bottleneck_{seed}", "wb") as f:
-                pickle.dump(bottleneck, f)
+        with open(f"bottleneck_{seed}", "wb") as f:
+            pickle.dump(bottleneck, f)
 
 if __name__ == "__main__":
     if len (sys.argv) != 4:
