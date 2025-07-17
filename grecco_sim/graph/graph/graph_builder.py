@@ -130,12 +130,14 @@ class GraphBuilder:
                 weighted_edges.append((node1_idx, node0_idx, capacity))
 
                 # Edge between source and slack with arbitrary high capacity.
-                # ToDo: Slack can also serve as sink.
-                if self.config.slack_as_source:
-                    edge_source_slack = (source_idx, node0_idx, 1000* capacity)
-                    weighted_edges.append(edge_source_slack)
+                if self.config.trafo_sign.loc[t].item() in [0., 1.]:
+                    source_slack = (source_idx, node0_idx, 1000 * capacity)
+                    weighted_edges.append(source_slack)
+                elif self.config.trafo_sign.loc[t].item() in [-1.]:
+                    slack_source = (node0_idx, source_idx, 1000 * capacity)
+                    weighted_edges.append(slack_source)
                 else:
-                    msg = "Slack as sink not implemented, yet."
+                    msg = "Trafo sign must be in [-1., .0, 1.]"
                     raise NotImplementedError(msg)
 
         # Add inflexible loads.

@@ -84,7 +84,7 @@ def get_p_capacity_mw(network: Network) -> Dict[str, float]:
             capacity_mw = lam * max_current_ka * voltage_kv
 
         # Store capacity in both directions.
-        capacities[line.Index] = capacity_mw / 3  # / 3.05660377358
+        capacities[line.Index] = (capacity_mw / 3) * 2
 
     # 2. Transformer capacity (in mW).
     # trafo_type = network.transformers.iloc[0]["type"]
@@ -95,7 +95,7 @@ def get_p_capacity_mw(network: Network) -> Dict[str, float]:
     except KeyError:
         nominal_apparent_power = network.transformers.iloc[0]["s_nom"]
     transformer_capacity = lam * nominal_apparent_power
-    capacities[network.transformers.index[0]] = transformer_capacity
+    capacities[network.transformers.index[0]] = transformer_capacity * 2
 
     return capacities
 
@@ -153,10 +153,10 @@ def get_inflexible_net_loads(network: pypsa.Network) -> pd.DataFrame:
         'bus']  # Series: index = generator name, value = bus
 
     # Step 3: Sum loads per bus
-    load_ts_bus = loads_ts.groupby(load_bus_map, axis=1).sum()
+    load_ts_bus = loads_ts.T.groupby(load_bus_map).sum().T
 
     # Step 4: Sum generation per bus
-    gen_ts_bus = gens_ts.groupby(gen_bus_map, axis=1).sum()
+    gen_ts_bus = gens_ts.T.groupby(gen_bus_map).sum().T
 
     # Step 5: Align both DataFrames and compute net load
     # Fill missing buses with 0s before subtraction

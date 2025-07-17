@@ -61,23 +61,32 @@ class ComplexNetworkAnalysis:
                     raise NotImplementedError
 
             # If edge supplies a load: no congestion.
-            if bus1 in self.network.loads.index:
+            if "baseload" in bus0.lower() or "baseload" in bus1.lower():
                 continue
-            if bus0 in self.network.loads.index:
+
+            if "storage" in bus0.lower() or "storage" in bus1.lower():
                 continue
+
+            if "heat" in bus0.lower() or "heat" in bus1.lower():
+                continue
+
+            if "ev" in bus0.lower() or "ev" in bus1.lower():
+                continue
+
 
             matches = pd.concat([
                 transmission_gear.query("bus0 == @bus0 and bus1 == @bus1"),
                 transmission_gear.query("bus0 == @bus1 and bus1 == @bus0")])
 
             if len(matches) != 1:
-                raise NotImplementedError()
+                print(bus0, bus1)
+                raise NotImplementedError
 
             match = matches.index[0]
 
             congestion_table.loc[t0, match] = 1
 
-        return congestion_table
+        return congestion_table, bottleneck
 
     def get_residual_graph(self, flow: Preflow) -> flow_graph.FlowNetwork:
         """ The residual graph for a given flow is obtained by reducing the

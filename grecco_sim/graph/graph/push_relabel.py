@@ -140,6 +140,7 @@ class PushRelabel:
     def __init__(self, config: PushRelabelConfiguration):
         self.config = config
         self.start_time = None
+        np.random.seed(self.config.seed)
 
     @staticmethod
     def choose_active_vertex(active_vertices: List[int], heights: List[int]) -> int:
@@ -155,7 +156,7 @@ class PushRelabel:
     @staticmethod
     def choose_push_target(targets: List[int]):
         """ Simply pick the first of possible targets. """
-        return targets[0]
+        return np.random.choice(targets)
 
     @property
     def current_runtime(self) -> float:
