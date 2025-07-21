@@ -72,6 +72,9 @@ def coordinator(grecco_sim: Any) -> Any:
     elif name == "feeder_fee":
         g = temporal_resolution(grecco_sim.config.temporal_resolution)
         return first_order.CoordinatorFeederDependentGridFee(grecco_sim, g)
+    elif name == "mixed":
+        g = temporal_resolution(grecco_sim.config.temporal_resolution)
+        return first_order.MixedGridFee(grecco_sim, g)
     elif name == "central":
         # Central coordinator requires ems_configs for optimization setup.
         return central.CentralCoordinator(grecco_sim)

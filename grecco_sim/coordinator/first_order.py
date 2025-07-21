@@ -157,6 +157,43 @@ class CoordinatorFeederDependentGridFee(CoordinatorDailyGridFee):
                 for sys_id in schedules}
 
 
+class MixedGridFee(CoordinatorDailyGridFee):
+    def get_fee_signals(self, schedules: Dict[str, type_defs.Schedule]) \
+            -> Dict[str, signals.FirstOrderSignal]:
+
+        p_grid = np.array([schedule.p_grid for schedule in schedules.values()])
+        current_grid_power = p_grid.sum(axis=0)
+
+        # Weight fee signal with parameter alpha.
+        # weight = self.sim_config.optimizer_config.alpha
+        # lam = np.ones(current_grid_power.shape) * weight
+        lam_trafo = current_grid_power / self.trafo_p_lim_kw
+        # lam[current_grid_power < self.trafo_p_lim] = 0.
+        lam_trafo = self.temporal_resolution(lam_trafo)
+
+        # For grid fee, we require signed congestions.
+        _, signed_congestion = self.get_congestion(schedules)
+        signed_line_congestion = signed_congestion[self.sim_grid.n.lines.index]
+
+        # Map lines to corresponding feeders.
+        mapper = lambda x: self.sim_grid.feeder_map[x]
+        feeder_congestion = signed_line_congestion.rename(columns=mapper)
+
+        # A feeder is congested if any of its segments is congested.
+        feeder_congestion = feeder_congestion.T.groupby(level=0).sum().T
+
+        # Create signals based on feeder congestion.
+        lam = dict()
+        for sys_id in schedules:
+            bus_name = sys_id.split("_")[-1]
+            feeder = self.sim_grid.feeder_map[bus_name]
+            lam[sys_id] = self.temporal_resolution(feeder_congestion[feeder])
+
+        return {sys_id: signals.FirstOrderSignal(0.5 *( lam[sys_id] + lam_trafo))
+                for sys_id in schedules}
+
+
+
 class Uncoordinated(GridFeeCoordinator):
     def get_signals(self, sim_state: dict[str, dict]) \
             -> dict[str, signals.Signal]:

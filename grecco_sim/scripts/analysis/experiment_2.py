@@ -8,6 +8,8 @@ import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 
+from grecco_sim.util.analysis import OptimizationRun, evaluate_congestion
+
 sns.color_palette("Set2")
 sns.set_theme(style="darkgrid")
 
@@ -86,38 +88,14 @@ def build_data(result_dir: Path, force_update: bool = False):
 
     for i, run_dir in enumerate(result_dir.glob("run_*"), 1):
         print(f"Processing {i}/{n_files}: {run_dir}")
-        result_scalar = dict()
 
-        with open(run_dir / 'meta.yaml', 'r') as f:
-            meta = yaml.load(f, Loader=yaml.SafeLoader)
-
-        meta["run_dir"] = run_dir
-        meta["run_name"] = run_dir.name
-        meta["Date"] = f"2023-{meta['month']}-{meta['day']}"
-
-        # Skip bad values.
-        if meta["end"] == "2023-08-30 07:30:00":
-            print(f"Bad run: {meta['run_name']}")
-            continue
-
-        result_scalar.update(meta)
-
-        trafo_ts = pd.read_csv(run_dir / "p_trafo.csv", index_col=0)
-
-        result_scalar["total_load"] = trafo_ts.sum().iloc[0]
-        result_scalar["total_absolute_load"] = trafo_ts.abs().sum().iloc[0]
-
-        transformer_limit = meta["transformer_lim"] * 1000
-        congestions = trafo_ts[trafo_ts > transformer_limit].dropna()
-
-        n_congestion_events = len(congestions)
-        result_scalar["Congestion Events (Count)"] = n_congestion_events
-
-        avg_congestion_size = np.mean(congestions / transformer_limit)
-        result_scalar["average_congestion_size"] = avg_congestion_size
-
-        result_scalar["congestion_peak"] = np.max(
-            congestions / transformer_limit)
+        x = OptimizationRun(run_dir)
+        result_scalar = x.meta
+        result_scalar["file_name"] = run_dir.name
+        result_scalar = evaluate_congestion(data=result_scalar, x=x)
+        result_scalar["run_dir"] = run_dir
+        result_scalar["run_name"] = run_dir.name
+        result_scalar["Date"] = f"2023-{result_scalar['month']}-{result_scalar['day']}"
 
         add_costs(result_scalar)
 
@@ -129,22 +107,6 @@ def build_data(result_dir: Path, force_update: bool = False):
     df.to_csv(tmp_dir / "exp_2_results_scalar.csv")
 
     return df
-
-def plot_heatmaps(df, plot_dir, y):
-
-    for date in df["date"].unique()[2:]:
-        data = df.query("date == @date and Solver == 'gurobi'").copy()
-        data = data.fillna(0)
-        data = data.pivot_table(index="Control", columns="Topology",
-                          values=y,
-                          aggfunc='mean')
-
-        fig, ax = plt.subplots()
-        plt.title(y)
-        ax = sns.heatmap(data, cmap="cool", annot=True, ax=ax)
-        ax.set(xlabel="", ylabel="")
-        ax.xaxis.tick_top()
-        plt.savefig(plot_dir / f"Heat_{y}_{date}.png")
 
 
 def main():
@@ -176,14 +138,9 @@ def main():
 
     print(df.columns)
 
-    df["Average Congestion (p. u.)"] = df["Average Congestion Size"]
-    y = df["Congestion Events (Count)"] * df["Average Congestion (p. u.)"]
-    df["Total Congestion (p. u.)"] = y
-    df["Total Absolute Load (kW)"] = df["Total Absolute Load"]
     df["Solver"] = df["run_name"].apply(lambda x: x.split("_")[2])
     df["Topology"] = df["run_name"].apply(lambda x: x.split("_")[3])
     df["Topology"] = df["Topology"].apply(lambda x: rename_grid(x))
-    df["Congestion Time (hrs)"] = df["Congestion Events (Count)"] / 4
     df.fillna(0)
 
     print(df["date"].unique())
@@ -192,9 +149,9 @@ def main():
     data = []
     for _, x in df.groupby(["Seed", "Date", "Solver", "Topology"]):
         normalization_value = (
-        x[x["control"] == "uncoordinated"]["Congestion Time (hrs)"]).item()
-        x["Congestion Time (hrs) Compared To Uncoordinated"] = \
-            (x["Congestion Time (hrs)"] - normalization_value)
+        x[x["control"] == "uncoordinated"]["Trafo Congestion Time (hrs)"]).item()
+        x["Trafo Congestion Time (hrs) Compared To Uncoordinated"] = \
+            (x["Trafo Congestion Time (hrs)"] - normalization_value)
         normalization_value = (
             x[x["control"] == "uncoordinated"]["Total Costs"]).item()
         x["Total Costs Compared To Uncoordinated"] = \
@@ -207,7 +164,8 @@ def main():
 
     g = sns.catplot(
         data=df_grouped, kind="swarm",
-        y="Control", x="Congestion Time (hrs) Compared To Uncoordinated", hue="Solver",
+        y="Control", x="Trafo Congestion Time (hrs) Compared To "
+                       "Uncoordinated", hue="Solver",
         errorbar="sd", palette="Set2", alpha=.6, height=6,
         col="Topology", aspect=.5, dodge=True, order=control_order,
     )
@@ -218,7 +176,22 @@ def main():
     g.axes.flat[0].set(xlabel=None)
     g.axes.flat[2].set(xlabel=None)
 
-    plt.savefig(plot_dir / "congestion_compared_to-uncoordinated.png")
+    plt.savefig(plot_dir / "congestion_compared_to_uncoordinated.png")
+
+    g = sns.catplot(
+        data=df_grouped, kind="box",
+        y="Control", x="Trafo Congestion Time (hrs) Compared To Uncoordinated",
+        hue="Solver", palette="Set2",height=6,
+        col="Topology", order=control_order,
+    )
+    g.despine(left=True)
+
+    for ax in g.axes.flat:
+        ax.axvline(x=0, color='black', linewidth=1.5, zorder=0)
+    g.axes.flat[0].set(xlabel=None)
+    g.axes.flat[2].set(xlabel=None)
+
+    plt.savefig(plot_dir / "congestion_compared_to_test.png")
 
     df_grouped["Total Costs (€) Compared To Uncoordinated"] = (
         (df_grouped["Total Costs Compared To Uncoordinated"] / 0.66) * 0.24)

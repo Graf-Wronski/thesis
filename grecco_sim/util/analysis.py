@@ -101,7 +101,7 @@ class OptimizationRun:
         return pd.read_csv(self.data_dir / 'lines-congestion.csv', index_col=0)
 
     @property
-    def transformer_congestion(self) -> pd.DataFrame:
+    def trafo_congestion(self) -> pd.DataFrame:
         if not (self.data_dir / 'transformers-congestion.csv').exists():
             get_congestion(self.data_dir)
         return pd.read_csv(self.data_dir / 'transformers-congestion.csv', index_col=0)
@@ -125,14 +125,21 @@ class OptimizationRun:
 
 
 def evaluate_congestion(data: dict, x: OptimizationRun) -> dict:
-    data["Feeder Congestion Events (Count)"] = (x.feeder_congestion >=
-                                                1).values.sum()
-    data["Total Feeder Congestion (kW)"] = x.feeder_congestion.values.sum()
+
+    n_events = (x.feeder_congestion >= 1).values.sum()
+    data["Feeder Congestion Events (Count)"] = n_events
+    hours = data["Feeder Congestion Events (Count)"] / 4
+    data["Feeder Congestion Time (hrs)"] = hours
+    y = (x.feeder_congestion - 1.0).clip(0).values.sum()
+    data["Total Feeder Congestion (kW)"] = y
     data["Total Feeder Load (kW)"] = x.feeder_loading.values.sum()
 
-    data["Trafo Congestion Events (Count)"] = (x.transformer_congestion >=
-                                               1).values.sum()
-    data["Total Trafo Congestion (kW)"] = x.transformer_congestion.values.sum()
+    n_events = (x.trafo_congestion >=1).values.sum()
+    data["Trafo Congestion Events (Count)"] = n_events
+    hours = data["Trafo Congestion Events (Count)"] / 4
+    data["Trafo Congestion Time (hrs)"] = hours
+    y = (x.trafo_congestion - 1.0).clip(0).values.sum()
+    data["Total Trafo Congestion (kW)"] = y
     data["Total Trafo Load (kW)"] = x.transformer_loading.values.sum()
 
     return data
