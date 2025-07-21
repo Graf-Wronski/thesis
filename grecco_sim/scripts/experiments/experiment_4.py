@@ -27,7 +27,7 @@ from grecco_sim.util.network_io import determine_feeders
 simplefilter(action="ignore", category=pd.errors.PerformanceWarning)
 
 data_root = Format().data_root
-output_root = Format().output_root / "experiment_4"
+output_root = Format().output_root / "experiment_5"
 
 scenario = "Opfingen"
 load_distribution = "shed_2050"
@@ -35,8 +35,8 @@ load_distribution = "shed_2050"
 param_grid = {
     "seed": [3, 5, 17, 257, 65537],
     "date": ["02_27", "08_11", "08_30", "10_11"],
-    "kw_per_prosumer": [2.0, 4.0, 6.0],
-    "feeder_trafo_ratio": [0.75, 1.0, 1.25, 1.5, 1.75, 2.0]}
+    "kw_per_prosumer": [1.0, 1.5, 2.0, 3.0, 4.0, 6.0],
+    "feeder_trafo_ratio": [1.0, 2.0, 3.0, 4.0]}
 
 param_grid = list(ParameterGrid(param_grid))
 
@@ -53,6 +53,12 @@ def main(param_index : int, solver: str, topology: str, control: str):
         dir_name += f"_{val}".replace('.', '')
 
     result_path = output_root / dir_name / control
+
+    
+    if (result_path / f"bottleneck_{seed}.pkl").exists():
+        print("Run already done.")
+        exit()
+
     if not result_path.exists():
         result_path.mkdir(parents=True)
 
@@ -129,22 +135,26 @@ def main(param_index : int, solver: str, topology: str, control: str):
     with open(result_path / 'meta.yaml', 'w+') as ff:
         yaml.dump(meta, ff)
 
-    n = sim.grid.n
 
-    trafo_sign = np.sign(n.transformers_t["p0"])
+    # Deactivated for now.
+    if control == "uncoordinated" and False:
 
-    for seed in [17, 65537]:
-        pr_config = PushRelabelConfiguration(
-            n.snapshots,
-            seed=seed,
-            max_runtime=20 * 60,
-            trafo_sign=trafo_sign)
+        n = sim.grid.n
 
-        cna = complex_network_analysis.ComplexNetworkAnalysis(n, pr_config)
-        graph_congestion_table, bottleneck = cna.run()
-        graph_congestion_table.to_csv(result_path / f"min_cut_{seed}.csv")
+        trafo_sign = np.sign(n.transformers_t["p0"])
 
-        with open(f"bottleneck_{seed}", "wb") as f:
+        for seed in [17]:
+            pr_config = PushRelabelConfiguration(
+                n.snapshots,
+                seed=seed,
+                max_runtime=25 * 60,
+                trafo_sign=trafo_sign)
+
+            cna = complex_network_analysis.ComplexNetworkAnalysis(n, pr_config)
+            graph_congestion_table, bottleneck = cna.run()
+            graph_congestion_table.to_csv(result_path / f"min_cut_{seed}.csv")
+
+        with open(result_path / f"bottleneck_{seed}.pkl", "wb") as f:
             pickle.dump(bottleneck, f)
 
 if __name__ == "__main__":
@@ -153,16 +163,11 @@ if __name__ == "__main__":
               "<index> <solver> <topology>")
         exit()
 
-    for control in ["uncoordinated", "feeder", "transformer", "central"]:
+    for control in ["feeder", "transformer", "central", "uncoordinated"]:
 
         index = int(sys.argv[1])
         solver = str(sys.argv[2])
         topology = str(sys.argv[3])
 
         main(index, solver, topology, control)
-
-
-
-
-# With results from uncoordinated and central: Determine bottlenecks.
 
