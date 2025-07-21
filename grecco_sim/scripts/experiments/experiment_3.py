@@ -6,6 +6,7 @@ import yaml
 
 import timeit
 
+
 from grecco_sim.graph.utils.format import Format
 from grecco_sim.util import configs
 from grecco_sim.simulator import simulation

@@ -30,7 +30,7 @@ if not result_path.exists():
 def main():
 
     # coordination_mechanism = "central"
-    coordination_mechanism = "transformer_fee"
+    coordination_mechanism = "mixed"
     # coordination_mechanism = "feeder_fee"
     # coordination_mechanism = "uncoordinated"
 

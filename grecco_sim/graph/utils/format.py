@@ -36,4 +36,9 @@ class Format:
         if not self.output_root.exists():
             self.output_root.mkdir()
 
-
+        try:
+            self.plot_root = Path(os.environ['PLOT_ROOT'])
+        except:
+            self.plot_root = Path("/home/carl-wanninger/plots")
+        if not self.plot_root.exists():
+            self.plot_root.mkdir()
