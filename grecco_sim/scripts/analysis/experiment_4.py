@@ -25,8 +25,9 @@ class DataPoint:
         
     @property
     def is_valid(self) -> bool:
-        p = self.data_dir / "central" / "meta.yaml"
-        return p.exists()
+        p1 = self.data_dir / "uncoordinated" / f"min_cut_{self.seed}.csv"
+        p2 = self.data_dir / "central" / "meta.yaml"
+        return p1.exists() and p2.exists()
 
     @property
     def is_semi_valid(self) -> bool:
@@ -82,7 +83,7 @@ def add_costs(scalar_dict: dict):
     inflex_cols = [col for col in ts_df.columns if
                    any(ic in col for ic in inflex_components)]
 
-    if scalar_dict["control"] not in ["central", "uncoordinated"]:
+    if scalar_dict["control"] not in ["central", "uncoordinated", "mixed"]:
         signals = pd.read_csv(run_dir / f"realized_signals.csv",
                               index_col=0)
         signals = signals.mean(axis=1)
@@ -185,7 +186,7 @@ def scalar_data(run_dir: Path, force_update: bool = False):
             return df_scalars
 
     paths = []
-    for tag in ["central", "transformer", "feeder", "uncoordinated"]:
+    for tag in ["central", "transformer", "feeder", "uncoordinated", "mixed"]:
         for p in run_dir.glob("run_*"):
             paths.append(p / tag)
 
@@ -220,21 +221,19 @@ def scalar_data(run_dir: Path, force_update: bool = False):
 
 if __name__ == "__main__":
 
-
     run_dir = Path("/home/carl-wanninger/runs/experiment_5")
     plot_dir = Format().plot_root / "experiment_4"
 
     df_congestion, df_gear_cut = build_data(run_dir=run_dir,
                                             force_update=False)
-    # df = pd.concat([df_congestion, df_gear_cut])
+    df = pd.concat([df_congestion, df_gear_cut])
 
-    """_, ax = plt.subplots()
     data = df[df["feeder_trafo_ratio"] == 3.0]
-    sns.catplot(data, ax=ax, x="kw_per_prosumer", y="value", kind="bar", estimator="sum")
+    sns.catplot(data, x="kw_per_prosumer", y="value", kind="bar", estimator="sum")
 
     _, ax = plt.subplots()
     sns.barplot(df, x="variable", hue="control", estimator="sum", y="value", ax=ax)
-    plt.show()"""
+    plt.show()
 
     """for df in [df_congestion, df_gear_cut]:
         df["feeder_trafo_ratio"] = df["feeder_trafo_ratio"].astype(float)
@@ -286,17 +285,33 @@ if __name__ == "__main__":
 
         data.append(x)
 
-    df_grouped = pd.concat(data).query("control != 'uncoordinated'")
+    df_grouped = pd.concat(data)  # .query("control != 'uncoordinated'")
 
     control_order = ['central', 'gaussian', 'step', 'cubic',
                      'cubic_restricted']
 
-    data = df_grouped.fillna(0)
 
-    for y in ["Transformer Relief (Time)", "Feeder Relief (Time)", "Flexible Signal Costs",
-              "Feeder Relief (Load)", "Transformer Relief (Load)"]:
+    data = df_grouped.fillna(0)  # .query("feeder_trafo_ratio == 3.0")
+    data["Topology"] = data["Topology"].str.replace("simbench-LV-", "")
+    data["Topology"] = data["Topology"].str.replace("--2", "")
+
+    num_feeders = {"rural1": 4, "rural2": 4, "semiurb4": 3}
+    data["num_feeder"] = data["Topology"].apply(lambda x: num_feeders[x])
+
+    # data = data.query("Topology == 'simbench-LV-rural2--2'")
+    data["Trafo Capacity (kW) per Prosumer"] = data["kw_per_prosumer"]
+    data["Feeder Capacity (kW) per Prosumer"] = data["kw_per_prosumer"] * data["feeder_trafo_ratio"]
+    data["Feeder Capacity (kW) per Prosumer"] /= data["num_feeder"]
+    data["fcpc"] = data["Feeder Capacity (kW) per Prosumer"]
+
+    data = data.query("fcpc < 5")
+    data = data.query("1 <= fcpc")
 
 
+    # , "Feeder Relief (Load)",
+    #               "Feeder Relief (Time)"
+
+    for y in ["Feeder Congestion Time (hrs)"]:
 
         # data["topology"] = data["topology"] + "_" + data["solver"].apply(
         # lambda x: x[0])
@@ -311,13 +326,29 @@ if __name__ == "__main__":
             else:
                 raise ValueError
 
-
         # data["control"] = data["control"].apply(lambda c: rename_control(c))
-        sns.relplot(data, x="feeder_trafo_ratio", hue="control", y=y,
-                    kind="line",
-                    col="kw_per_prosumer", col_wrap=3)
+        _ = sns.relplot(data, x="Feeder Capacity (kW) per Prosumer", hue="control", y=y,
+                        col="date", kind="line", col_wrap=2)
+
+        for y in ["Trafo COngestime Time (hrs)"]:
+
+            # data["topology"] = data["topology"] + "_" + data["solver"].apply(
+            # lambda x: x[0])
+
+            def rename_control(old_name: str):
+                if old_name == "central_transformer":
+                    return "central"
+                elif "_transformer" in old_name:
+                    return f"transformer: {old_name[:-len('_transformer')]}"
+                elif "_feeder" in old_name:
+                    return f"feeder: {old_name[:-len('_feeder')]}"
+                else:
+                    raise ValueError
 
 
-        plt.savefig(plot_dir / f"{y.lower().replace(' ', '_')}.png")
+            # data["control"] = data["control"].apply(lambda c: rename_control(c))
+            _ = sns.relplot(data, x="kw_per_prosumer", hue="control", y=y,
+                            col="Date", kind="line")
+
 
     plt.show()

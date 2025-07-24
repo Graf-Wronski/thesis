@@ -160,7 +160,7 @@ class SimulationResult:
             self.state_ts("ev").to_csv(p / "ev.csv")
 
         # Write fee data for households.
-        if self.config.coordinator_name in ["feeder_fee", "transformer_fee"]:
+        if self.config.coordinator_name in ["feeder_fee", "transformer_fee", "mixed"]:
             signal_df = pd.DataFrame({key: val[:, -1, 0].tolist()
                                       for key, val in self.signals.items()})
             signal_df.to_csv(p / "realized_signals.csv")
