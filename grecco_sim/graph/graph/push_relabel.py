@@ -202,16 +202,14 @@ class PushRelabel:
         iteration = 0
 
         while True:
-            if iteration % 50_000 == 0:
-                print(f"Current iteration: {iteration}")
-                print(f"Current highest label = {max(preflow.height)}")
-                print(f"Current runtime is {self.current_runtime}.")
-                print(f"Maximal label is {2 * preflow.num_vertices - 1}.")
-
             if preflow.is_flow:
                 return preflow
 
             if self.current_runtime > self.config.max_runtime:
+                print(f"Current iteration: {iteration}")
+                print(f"Current highest label = {max(preflow.height)}")
+                print(f"Current runtime is {self.current_runtime}.")
+                print(f"Maximal label is {2 * preflow.num_vertices - 1}.")
                 msg = "Maximum flow could not be calculated in time."
                 raise RuntimeError(msg)
 

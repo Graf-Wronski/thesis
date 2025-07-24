@@ -55,10 +55,7 @@ class ComplexNetworkAnalysis:
             t0, t1 = start[1], end[1]
 
             if t0 != t1:
-                if bus0 == bus1:
-                    continue
-                else:
-                    raise NotImplementedError
+                continue
 
             # If edge supplies a load: no congestion.
             if "baseload" in bus0.lower() or "baseload" in bus1.lower():

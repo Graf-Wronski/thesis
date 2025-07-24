@@ -115,4 +115,5 @@ if __name__ == "__main__":
     index = int(sys.argv[1])
     solver = str(sys.argv[2])
     topology = str(sys.argv[3])
+    
     main(index, solver, topology)
