@@ -3,6 +3,7 @@ import datetime
 import os
 from pathlib import Path
 from typing import Optional, Literal
+import warnings
 
 from grecco_sim.graph.utils.format import Format
 import pandas as pd
@@ -174,10 +175,11 @@ class SimulationConfiguration:
             if not self.coordinator_name in ["central", "uncoordinated"]:
                 msg = "Temporal resolution / Coordinator mismatch."
                 raise ValueError(msg)
-        else:
+        elif self.temporal_resolution != "None":
             if self.coordinator_name in ["central", "uncoordinated"]:
-                msg = "Temporal resolution / Coordinator mismatch."
-                raise ValueError(msg)
+                msg = (f"Coordinator {self.coordinator_name} ignores temporal "
+                       f"resolution {self.temporal_resolution}.")
+                warnings.warn(msg)
 
     @property
     def dt_h(self) -> float:

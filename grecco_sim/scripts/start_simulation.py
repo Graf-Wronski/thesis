@@ -4,6 +4,7 @@ import datetime
 from grecco_sim.graph.utils.format import Format
 from grecco_sim.util import configs
 from grecco_sim.simulator import simulation
+from grecco_sim.analysis import plotter
 
 import pandas as pd
 from warnings import simplefilter
@@ -29,8 +30,8 @@ if not result_path.exists():
 
 def main():
 
-    # coordination_mechanism = "central"
-    coordination_mechanism = "mixed"
+    coordination_mechanism = "central"
+    # coordination_mechanism = "mixed"
     # coordination_mechanism = "feeder_fee"
     # coordination_mechanism = "uncoordinated"
 
@@ -40,7 +41,7 @@ def main():
 
     optimizer_config = configs.OptimizerConfiguration(
         horizon=12,
-        solver_name="ipopt")
+        solver_name="osqp")
 
     # time_index = grid.snapshots
     # start = pd.Timestamp(year=2023, month=1, day=13, hour=0)
@@ -72,8 +73,8 @@ def main():
     sim.run()
     sim.write(result_path)
 
-    # simulation_plotter = plotter.Plotter(sim)
-    # simulation_plotter.plot()
+    simulation_plotter = plotter.Plotter(sim)
+    simulation_plotter.plot()
 
 
 if __name__ == "__main__":
