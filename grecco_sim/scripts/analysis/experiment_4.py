@@ -227,6 +227,7 @@ if __name__ == "__main__":
     df_congestion, df_gear_cut = build_data(run_dir=run_dir,
                                             force_update=False)
     df = pd.concat([df_congestion, df_gear_cut])
+    print(df.columns)
 
     data = df[df["feeder_trafo_ratio"] == 3.0]
     sns.catplot(data, x="kw_per_prosumer", y="value", kind="bar", estimator="sum")
@@ -306,7 +307,6 @@ if __name__ == "__main__":
 
     data = data.query("fcpc < 5")
     data = data.query("1 <= fcpc")
-
 
     # , "Feeder Relief (Load)",
     #               "Feeder Relief (Time)"
