@@ -23,9 +23,9 @@ class Grid:
         self.time_index = simulation_config.time_index
 
         self.n = pypsa.Network()
-        
+
         print("Importing pypsa.Network ...")
-        
+
         with warnings.catch_warnings(action="ignore"):
             p = simulation_config.grid_data_path
             self.n.import_from_csv_folder(p)
@@ -67,16 +67,16 @@ class Grid:
             params = network_io.get_hp(self.n)
             name_dict = build.id_mapping(params, unit="hp")
             self.hp_params = params.rename(index=name_dict)
-            
+
         if simulation_config.use_ev:
             request_path = simulation_config.charging_request_path
             params, requests = network_io.get_ev(self.n, request_path)
             self.ev_params = params.rename(index=name_dict)
             self.requests = network_io.preprocess_charging_requests(
-                requests, self.simulation_config.time_index)
+                requests, self.simulation_config.time_index
+            )
 
-        self.units_at = {sys_id: self._units_at(sys_id)
-                         for sys_id in self.sys_ids}
+        self.units_at = {sys_id: self._units_at(sys_id) for sys_id in self.sys_ids}
 
         for load in self.n.loads.index:
             self.n.loads_t["p_set"][load] = np.zeros(len(self.time_index))
@@ -97,7 +97,7 @@ class Grid:
 
     @functools.cached_property
     def unit_dict(self) -> dict:
-        """ A dict with all units for look up operations. Key is unit type. """
+        """A dict with all units for look up operations. Key is unit type."""
 
         # Default values are empty lists.
         units = {unit: [] for unit in ["baseload", "pv", "bat", "hp", "ev"]}
@@ -119,7 +119,7 @@ class Grid:
         return units
 
     def _units_at(self, sys_id: str) -> list[str]:
-        """ Return the available units for a given system. """
+        """Return the available units for a given system."""
 
         units = []
 
@@ -130,10 +130,10 @@ class Grid:
         return units
 
     def determine_feeders(self) -> dict[str, int]:
-        """ A feeeder is defined as subtree rooted in main bus bar (root bus).
+        """A feeeder is defined as subtree rooted in main bus bar (root bus).
 
         Returns:
-            dict[str, int]: Map bus or line to feeder index. """
+            dict[str, int]: Map bus or line to feeder index."""
 
         feeder_map = {}
 
@@ -167,7 +167,7 @@ class Grid:
 
         for bus_idx, bus_data in n.buses.iterrows():
             feeder_map[bus_idx] = int(bus_data["sub_network"])
-            
+
         for line_idx, line_data in n.lines.iterrows():
             feeder_map[line_idx] = int(line_data["sub_network"])
 
@@ -178,21 +178,21 @@ class Grid:
 
     @staticmethod
     def build_sys_id(load_index: int, bus_name: str) -> str:
-        """ Unique identifier for energy management systems.
+        """Unique identifier for energy management systems.
 
         Args:
             load_index: Index of baseload associated with EMS.
             bus_name: Name of bus the EMS is attached to.
 
         Returns:
-            str: Unique system identifier. """
+            str: Unique system identifier."""
 
         return f"bus_{bus_name}_load_{load_index}"
 
     def get_system_ts_dict(self, sys_id: str) -> dict:
-        """ Return (inflexible) timeseries input data.
+        """Return (inflexible) timeseries input data.
 
-        Keys are: {sys_id}_{unit}_{attr}, i.e. sys_at_bus_3_pv_p. """
+        Keys are: {sys_id}_{unit}_{attr}, i.e. sys_at_bus_3_pv_p."""
 
         # ToDo: Maybe move weather data here.
 
@@ -210,7 +210,7 @@ class Grid:
         return data
 
     def congestion(self, snapshots: Optional[pd.DatetimeIndex] = None) -> pd.DataFrame:
-        """ Amount of congestion for transmission gear at given time steps.
+        """Amount of congestion for transmission gear at given time steps.
 
         Args:
             snapshots:
@@ -220,7 +220,6 @@ class Grid:
                 amount of congestion, 0. if capacities are respected.
         """
 
-
         n = self.n.copy()
 
         if snapshots is not None:
@@ -228,13 +227,14 @@ class Grid:
 
         n.lpf()
         p_transmission = network.get_p_transmission_mw(n)
+        # Formula for congestion
         congestion = (p_transmission.abs() - self.capacities).clip(lower=0)
 
         return congestion
 
     @property
     def ptdf_matrix(self) -> np.ndarray:
-        """ Calculate the Power Transfer Distribution Factor matrix.
+        """Calculate the Power Transfer Distribution Factor matrix.
 
         Given a bus and a line the PTD-factor describes how much a change in
         load at the bus would affect the load at the line.
@@ -259,7 +259,7 @@ class Grid:
         self.n.export_to_csv_folder(p / "network")
 
     def write_loads(self, state: dict[str, dict], t: int) -> None:
-        """ Set grid state from simulation node state. """
+        """Set grid state from simulation node state."""
 
         p_set_load = dict()
         p_set_gen = dict()
@@ -309,7 +309,7 @@ class Grid:
 
         # PyPSA snapshots are not localized. PyPSA loads are in MW.
         time_index = [self.time_index[t].tz_localize(None)]
-        p_set_load = pd.DataFrame(p_set_load , index=time_index) / 1000
+        p_set_load = pd.DataFrame(p_set_load, index=time_index) / 1000
         self.n.loads_t["p_set"].update(p_set_load)
 
         p_set_gen = pd.DataFrame(p_set_gen, index=time_index) / 1000

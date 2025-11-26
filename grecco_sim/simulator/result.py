@@ -9,12 +9,13 @@ from grecco_sim.util import configs
 
 
 class SimulationResult:
-    """ A class to store and interpret simulation results. """
+    """A class to store and interpret simulation results."""
 
     def __init__(
-            self,
-            sim_config: configs.SimulationConfiguration,
-            sim_nodes: list[sim_node.SimulationNode]):
+        self,
+        sim_config: configs.SimulationConfiguration,
+        sim_nodes: list[sim_node.SimulationNode],
+    ):
 
         self.sim_len = sim_config.n_time_steps
         self.config = sim_config
@@ -29,8 +30,10 @@ class SimulationResult:
 
         def log_tensor() -> dict[str, np.ndarray]:
             market_matrix_shape = (self.sim_len, n_market, n_optimizer)
-            return {str(node): np.full(market_matrix_shape, np.nan)
-                    for node in self.sim_nodes}
+            return {
+                str(node): np.full(market_matrix_shape, np.nan)  # type: ignore
+                for node in self.sim_nodes
+            }
 
         self.signals = log_tensor()
         self.p_grid = log_tensor()
@@ -45,7 +48,7 @@ class SimulationResult:
         self.config.n_time_steps = self.sim_len
 
     def log_market(self, signals: dict, schedules: dict, t: int, k: int):
-        """ Log the interactions for each market iteration.
+        """Log the interactions for each market iteration.
 
         Args:
             signals:
@@ -59,30 +62,30 @@ class SimulationResult:
 
         for node in self.sim_nodes:
             signal, schedule = signals[str(node)], schedules[str(node)]
-            self.signals[str(node)][t, k, :len(signal)] = signal.mul_lambda
-            self.p_grid[str(node)][t, k, :len(schedule)] = schedule.p_grid
+            self.signals[str(node)][t, k, : len(signal)] = signal.mul_lambda
+            self.p_grid[str(node)][t, k, : len(schedule)] = schedule.p_grid
 
             if node.has_bat:
-                self.p_bat[str(node)][t, k, :len(schedule)] = schedule.p_bat
+                self.p_bat[str(node)][t, k, : len(schedule)] = schedule.p_bat
 
             if node.has_hp:
-                self.p_hp[str(node)][t, k, :len(schedule)] = schedule.p_hp
+                self.p_hp[str(node)][t, k, : len(schedule)] = schedule.p_hp
 
             if node.has_ev:
-                self.p_ev[str(node)][t, k, :len(schedule)] = schedule.p_ev
+                self.p_ev[str(node)][t, k, : len(schedule)] = schedule.p_ev
 
     def log_grid_fees(self, grid_fees: dict):
-        """ Add grid_fees as dictionaries for each node. """
+        """Add grid_fees as dictionaries for each node."""
         for node in grid_fees.keys():
             self.grid_fees[node].append(grid_fees[node])
 
     def log_iteration_time(self, iteration_time: float):
-        """ Log the time for a simulation step. """
+        """Log the time for a simulation step."""
         self.iteration_time.append(iteration_time)
 
     @property
     def p_trafo_ts(self) -> pd.DataFrame:
-        """ Transformer power is sum of nodal powers. """
+        """Transformer power is sum of nodal powers."""
         return self.state_ts(key2="p_node").sum(axis=1)
 
     # @functools.cached_property
@@ -94,7 +97,7 @@ class SimulationResult:
             for param_name, param_val in node.state_history.items():
                 # Trim parameters that exceed simulation length.
                 if len(param_val) == self.config.n_time_steps + 1:
-                    param_val = param_val[:self.config.n_time_steps]
+                    param_val = param_val[: self.config.n_time_steps]
 
                 data[f"{str(node)}_{param_name}"] = param_val
 
@@ -104,12 +107,13 @@ class SimulationResult:
         return df
 
     def state_ts(
-            self,
-            key1: Optional[str] = None,
-            key2: Optional[str] = None,
-            key3: Optional[str] = None,
-            drop_key: bool = True) -> pd.DataFrame:
-        """ Table with simple time-series results. """
+        self,
+        key1: Optional[str] = None,
+        key2: Optional[str] = None,
+        key3: Optional[str] = None,
+        drop_key: bool = True,
+    ) -> pd.DataFrame:
+        """Table with simple time-series results."""
 
         state_ts = self._state_ts.copy()
         keywords = [x for x in [key1, key2, key3] if x]
@@ -120,15 +124,17 @@ class SimulationResult:
             # Remove superfluent identifiers if desired.
             if drop_key:
                 # Remove keyword and clean up string from _x__y_ to x_y.
-                cols = [col.replace(keyword, "").replace("__", "_").strip('_')
-                        for col in state_ts.columns]
+                cols = [
+                    col.replace(keyword, "").replace("__", "_").strip("_")
+                    for col in state_ts.columns
+                ]
                 state_ts.columns = cols
 
         return state_ts
 
     @property
     def grid_fee_ts(self) -> pd.DataFrame:
-        df  = pd.DataFrame(self.grid_fees, index=self.config.time_index)
+        df = pd.DataFrame(self.grid_fees, index=self.config.time_index)
         # Localized tz data annoys while plotting.
         df.index = df.index.tz_localize(None)
         return df
@@ -161,8 +167,9 @@ class SimulationResult:
 
         # Write fee data for households.
         if self.config.coordinator_name in ["feeder_fee", "transformer_fee", "mixed"]:
-            signal_df = pd.DataFrame({key: val[:, -1, 0].tolist()
-                                      for key, val in self.signals.items()})
+            signal_df = pd.DataFrame(
+                {key: val[:, -1, 0].tolist() for key, val in self.signals.items()}
+            )
             signal_df.to_csv(p / "realized_signals.csv")
             signal_shape = next(iter(self.signals.values())).shape
 
@@ -170,12 +177,11 @@ class SimulationResult:
                 (p / "signals").mkdir()
                 for i in range(signal_shape[1]):
                     for j in range(signal_shape[2]):
-                        signal_df = pd.DataFrame({key: val[:, i, j].tolist()
-                                                  for key, val in
-                                                  self.signals.items()})
-                        file_name =  f"market_{i}_horizon_{j}.csv"
+                        signal_df = pd.DataFrame(
+                            {
+                                key: val[:, i, j].tolist()
+                                for key, val in self.signals.items()
+                            }
+                        )
+                        file_name = f"market_{i}_horizon_{j}.csv"
                         signal_df.to_csv(p / "signals" / file_name)
-
-        
-
-

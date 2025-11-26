@@ -15,3 +15,10 @@ data/Opfingen_scenario_pv_20_ev_efh_0_ev_mfh_0_evghd_0_ev_fleet_0_hp_15_2023pf_a
 data/Opfingen_scenario_pv_20_ev_efh_0_ev_mfh_0_evghd_0_ev_fleet_0_hp_15_2023pf_all_ts_reduced
 grecco_sim.egg-info
 data/Opfingen_Profiles_2023
+data/ev/*
+data/weather/*
+data/samples/*
+data/heat_pump_database/*
+data/market/energy_prices_entsoe_2023.csv
+default/*
+environment.yml

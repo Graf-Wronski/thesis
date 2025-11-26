@@ -11,7 +11,7 @@ import numpy as np
 
 from grecco_sim.util import logger
 
-os.environ["GRB_LICENSE_FILE"] = "/home/carl-wanninger/licenses/gurobi.lic"
+os.environ["GRB_LICENSE_FILE"] = "C:\\gurobi\\gurobi.lic"
 os.environ["GUROBI_VERSION"] = "100"
 
 
@@ -26,7 +26,9 @@ def dot(x: Union[casadi.SX, np.ndarray], y: Union[casadi.SX, np.ndarray]) -> cas
     if isinstance(y, np.ndarray):
         y = casadi.DM(y)
 
-    # assert x.size() == y.size(), f"Dimension of x ({x.shape}) does not match y dimension of y ({y.size()})"
+    # assert (
+    #     x.size() == y.size()
+    # ), f"Dimension of x ({x.shape}) does not match y dimension of y ({y.size()})"
     return casadi.dot(x, y)
 
 
@@ -41,6 +43,7 @@ def to_cas_DM(x: np.ndarray):
 
 class MySX(object):
     """Wrapper around casadi SX variable to remember how to use it."""
+
     def __init__(self, name, lb, ub, discrete: bool = False, horizon: int = 1):
 
         self.name = name
@@ -75,6 +78,7 @@ class MyConstr(object):
 
 class MyPar(object):
     """Wrapper around casadi to remember how to define a parameter."""
+
     def __init__(self, name, hor: int = 1):
         self.name = name
         self.sx = casadi.SX.sym(name, hor)
@@ -139,13 +143,22 @@ class MyNLPSolver:
     ):
 
         self.solver_name = solver
-        self.nlp_solver = self._init_solver(obj, states, constraints, parameters, user_functions)
+        self.nlp_solver = self._init_solver(
+            obj, states, constraints, parameters, user_functions
+        )
         # TBD handle obj, make it a function to be able to calculate the gradient
 
         self.sol = None
         self.solution_stats = None
 
-    def _init_solver(self, obj, states, constraints: List[MyConstr], parameters, user_functions: Dict[str, casadi.SX] | None):
+    def _init_solver(
+        self,
+        obj,
+        states,
+        constraints: List[MyConstr],
+        parameters,
+        user_functions: Dict[str, casadi.SX] | None,
+    ):
         # Concatenate decision variables and constraint terms
         w = casadi.vertcat(*[x.sx for x in states])
 
@@ -160,7 +173,8 @@ class MyNLPSolver:
         # self.obj_func = casadi.Function("objective", [w, p], [obj])
         if user_functions is not None:
             self._custom_functions: dict[str, casadi.Function] = {
-                name: casadi.Function(name, [w, p], [user_functions[name]]) for name in user_functions
+                name: casadi.Function(name, [w, p], [user_functions[name]])
+                for name in user_functions
             }
         else:
             self._custom_functions: dict[str, casadi.Function] = {}
@@ -176,7 +190,9 @@ class MyNLPSolver:
             solver_params = {"error_on_fail": False, "discrete": discrete}
             # Possible solver specific options.
             if self.solver_name in self.solver_specific_settings:
-                solver_params[self.solver_name] = self.solver_specific_settings[self.solver_name]
+                solver_params[self.solver_name] = self.solver_specific_settings[
+                    self.solver_name
+                ]
 
             nlp_solver = self.solvers[self.solver_name][0](
                 "nlp_solver", self.solvers[self.solver_name][1], nlp_prob, solver_params
@@ -190,7 +206,9 @@ class MyNLPSolver:
         self.state_names = [x.name for x in states]
         self.state_dim = np.array([x.horizon for x in states]).sum()
         self.parameter_names = [par_name for par_name in parameters]
-        self.par_lengths = {par_name: par.sx.shape[0] for par_name, par in parameters.items()}
+        self.par_lengths = {
+            par_name: par.sx.shape[0] for par_name, par in parameters.items()
+        }
 
         # Make a Table of content which segments of the w Vector belong to which state
         _idx_start = 0
@@ -210,7 +228,9 @@ class MyNLPSolver:
     def solve(self, parameter_values, init_guess=None):
 
         try:
-            _parameters = casadi.vertcat(*[parameter_values[par_name] for par_name in self.parameter_names])
+            _parameters = casadi.vertcat(
+                *[parameter_values[par_name] for par_name in self.parameter_names]
+            )
         except KeyError:
             print(f"{parameter_values.keys()}, {self.parameter_names}")
             raise
@@ -228,7 +248,10 @@ class MyNLPSolver:
         self.solution_stats = self.nlp_solver.stats()
         stats = self.nlp_solver.stats()
         # print(f"Solver status: {stats['return_status']}")
-        if stats["return_status"] != "OPTIMAL" and stats["unified_return_status"] != "SOLVER_RET_SUCCESS":
+        if (
+            stats["return_status"] != "OPTIMAL"
+            and stats["unified_return_status"] != "SOLVER_RET_SUCCESS"
+        ):
             warnings.warn(
                 f"Solver did not converge to optimal solution (status == {self.nlp_solver.stats()['return_status']})"
             )
@@ -238,14 +261,21 @@ class MyNLPSolver:
         # with logger.show_output():
         with logger.suppress_output():
             sol = self.nlp_solver(
-                x0=init_guess, lbx=self.x_lb, ubx=self.x_ub, lbg=self.g_lb, ubg=self.g_ub, p=parameters
+                x0=init_guess,
+                lbx=self.x_lb,
+                ubx=self.x_ub,
+                lbg=self.g_lb,
+                ubg=self.g_ub,
+                p=parameters,
             )
         return sol
 
     # ============ solution access =================== -> source out of the solver class
 
     def _access_vars(self, x, list_var_names: list[str]):
-        assert len(self.state_names) == self.state_dim, "Access with opt_vector function! This is deprecated."
+        assert (
+            len(self.state_names) == self.state_dim
+        ), "Access with opt_vector function! This is deprecated."
 
         def get(var_name):
             idx = self.state_names.index(var_name)
@@ -261,7 +291,9 @@ class MyNLPSolver:
 
         Warning, this will only work correctly if exclusively one-dimensional variables are used.
         """
-        assert len(self.state_names) == self.state_dim, "Access with opt_vector function! This is deprecated."
+        assert (
+            len(self.state_names) == self.state_dim
+        ), "Access with opt_vector function! This is deprecated."
 
         if self.sol is None:
             raise ValueError("solve OCP first before accessing solution!")
@@ -277,7 +309,9 @@ class MyNLPSolver:
     def opt_vector(self, var_name: str) -> np.ndarray:
         """Access solution if states are vectors."""
 
-        assert isinstance(var_name, str), f"Pass variable name here: ({var_name}) as string!"
+        assert isinstance(
+            var_name, str
+        ), f"Pass variable name here: ({var_name}) as string!"
 
         if self.sol is None:
             raise ValueError("solve OCP first before accessing solution!")
@@ -300,7 +334,9 @@ class MyNLPSolver:
         if self.sol is None:
             raise ValueError("solve OCP first before accessing solution!")
 
-        vec = self.sol["lam_g"][self.constr_toc[constraint_name][0] : self.constr_toc[constraint_name][1]]
+        vec = self.sol["lam_g"][
+            self.constr_toc[constraint_name][0] : self.constr_toc[constraint_name][1]
+        ]
 
         return vec.full().squeeze(axis=1)
 
@@ -336,12 +372,18 @@ class MyNLPSolver:
         func_val = self._custom_functions[func_name](x, self._p_vec)
 
         if self.solver_name == "osqp":
-            grad_x, grad_p = self._custom_functions[func_name].jacobian()(x, self._p_vec, func_val)
+            grad_x, grad_p = self._custom_functions[func_name].jacobian()(
+                x, self._p_vec, func_val
+            )
         else:
-            grad_x, grad_p = self._custom_functions[func_name].jacobian()(x, self._p_vec, func_val)
+            grad_x, grad_p = self._custom_functions[func_name].jacobian()(
+                x, self._p_vec, func_val
+            )
             # grad_x = _grad[:self.state_dim]
             # grad_p = _grad[:self.state_dim]
 
-        return grad_x[:, self.state_toc[wrt_var_name][0] : self.state_toc[wrt_var_name][1]].full()
+        return grad_x[
+            :, self.state_toc[wrt_var_name][0] : self.state_toc[wrt_var_name][1]
+        ].full()
 
         # return self.obj_func.jacobian()(self.sol["x"])[self.state_toc[wrt_var_name][0]:self.state_toc[wrt_var_name][1]]

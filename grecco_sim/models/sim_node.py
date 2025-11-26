@@ -11,12 +11,12 @@ from grecco_sim.util import type_defs
 
 class SimulationNode:
     def __init__(
-            self,
-            simulation_config: configs.SimulationConfiguration,
-            ems_config: configs.EMSConfiguration,
-            timeseries: pd.DataFrame):
-
-        """ GridNodes are passive grid elements that pass information. """
+        self,
+        simulation_config: configs.SimulationConfiguration,
+        ems_config: configs.EMSConfiguration,
+        timeseries: pd.DataFrame,
+    ):
+        """GridNodes are passive grid elements that pass information."""
 
         self.sys_id = ems_config.sys_id
         self.config = simulation_config
@@ -44,12 +44,11 @@ class SimulationNode:
                 self.controller = local_control.LocalControllerNoBat()
             else:
                 self.controller = muc.MultiUnitController(
-                    self.config,
-                    self.ems_config,
-                    self.timeseries)
+                    self.config, self.ems_config, self.timeseries
+                )
 
     def __str__(self) -> str:
-        """ Nodes are identified by their sys_id. """
+        """Nodes are identified by their sys_id."""
         return self.sys_id
 
     def step(self):
@@ -59,18 +58,16 @@ class SimulationNode:
             self.controller.step()
 
     def get_schedule(
-            self,
-            forecast: forecaster.NodeForecast,
-            coordinator_signal: signals.Signal) -> type_defs.Schedule:
-
-        """ Apply control and get respective schedule states.
+        self, forecast: forecaster.NodeForecast, coordinator_signal: signals.Signal
+    ) -> type_defs.Schedule:
+        """Apply control and get respective schedule states.
 
         Args:
             forecast: ...
             coordinator_signal: Node's LocalController reacts to signal.
 
         Returns:
-            Future states in reaction to signal. """
+            Future states in reaction to signal."""
 
         state = self.phys_model.state
 
@@ -87,9 +84,8 @@ class SimulationNode:
             schedule = coordinator_signal.schedule
         else:
             schedule = self.controller.get_schedule(
-                forecast=forecast,
-                state=state,
-                signal=coordinator_signal)
+                forecast=forecast, state=state, signal=coordinator_signal
+            )
 
         return schedule
 
@@ -102,13 +98,13 @@ class SimulationNode:
         return self.phys_model.p_model
 
     def realize_schedule(self, schedule: type_defs.Schedule):
-        """ Converts coordination signal to local control and applies it.
+        """Converts coordination signal to local control and applies it.
 
         Args:
             schedule: As provided by central coordinator or local controller.
-            
+
         ToDo: It is a little unintuitive to create a control in a method
-            called 'apply_control'. """
+            called 'apply_control'."""
 
         if not isinstance(schedule.p_grid, np.ndarray):
             print("")
@@ -116,7 +112,7 @@ class SimulationNode:
 
     @property
     def state_history(self) -> dict[str, np.ndarray]:
-        """ Pass output of physical model together with respective signals. """
+        """Pass output of physical model together with respective signals."""
         state_history = self.phys_model.state_history
         state_history["p_node"] = self.p_node
         return state_history

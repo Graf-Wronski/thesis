@@ -179,5 +179,5 @@ dependencies:
       - xarray==2025.4.0
       - zipp==3.21.0
 variables:
-  GUROBI_LICENSE_FILE: /home/carl-wanninger/licenses/gurobi.lic
-prefix: /home/carl-wanninger/anaconda3/envs/grecco_sim
+  GUROBI_LICENSE_FILE: C:\gurobi\gurobi.lic
+# prefix: /home/carl-wanninger/anaconda3/envs/grecco_sim

@@ -9,9 +9,10 @@ from typing import Any
 
 class CentralController:
     def __init__(
-            self,
-            opt_config: configs.OptimizerConfiguration,
-            ems_configs: dict[str, configs.EMSConfiguration]):
+        self,
+        opt_config: configs.OptimizerConfiguration,
+        ems_configs: dict[str, configs.EMSConfiguration],
+    ):
 
         self.now = 0
         self.config = opt_config
@@ -24,7 +25,8 @@ class CentralController:
             horizon=self.config.horizon,
             opt_pars=self.config,
             ems_configs=ems_configs,
-            now=self.now)
+            now=self.now,
+        )
 
         problem = self.mathematical_model.problem
         discrete = self.mathematical_model.discrete
@@ -38,11 +40,7 @@ class CentralController:
     def sys_ids(self) -> list[str]:
         return self.mathematical_model.sys_ids
 
-    def get_schedules(
-            self,
-            state: dict,
-            forecast: Any,
-            horizon: int):
+    def get_schedules(self, state: dict, forecast: Any, horizon: int):
 
         # Update model if remaining time steps are less than horizon.
         if horizon < self.horizon:
@@ -51,7 +49,8 @@ class CentralController:
                 horizon=self.horizon,
                 opt_pars=self.config,
                 ems_configs=self.ems_configs,
-                now=self.now)
+                now=self.now,
+            )
             problem = self.mathematical_model.problem
             discrete = self.mathematical_model.discrete
             self.solver = build.solver(self.config, problem, discrete)
@@ -67,10 +66,7 @@ class CentralController:
 
         return schedules
 
-    def state_to_params(
-            self,
-            state: dict,
-            forecast: Any) -> dict[str, np.ndarray]:
+    def state_to_params(self, state: dict, forecast: Any) -> dict[str, np.ndarray]:
 
         # ToDo: Conflict between global weather and individual load forecasts.
 
@@ -98,24 +94,26 @@ class CentralController:
                     now=self.now,
                     horizon=self.horizon,
                     config=ems.ev_charger,
-                    request_list=ems.ev_requests)
+                    request_list=ems.ev_requests,
+                )
 
                 p[f"ev_cum_upper_limit_at_{sys_id}"] = upper_lims
                 p[f"ev_cum_lower_limit_at_{sys_id}"] = lower_lims
 
-        p = casadi.vertcat(*[p[param_name] for param_name in
-                             self.mathematical_model.parameters])
+        p = casadi.vertcat(
+            *[p[param_name] for param_name in self.mathematical_model.parameters]
+        )
 
         x_lb, x_ub = self.mathematical_model.state_bounds
         g_lb, g_ub = self.mathematical_model.constraint_bounds
 
-        return {"p": p, "lbx": x_lb, "ubx": x_ub, "lbg": g_lb, "ubg": g_ub}
+        return {"p": p, "lbx": x_lb, "ubx": x_ub, "lbg": g_lb, "ubg": g_ub}  # type: ignore
 
     def solution_to_schedules(self, solution):
         schedules = dict()
 
         def get_solution_vals(var: str) -> np.ndarray:
-            """ Extract variable from solution vector """
+            """Extract variable from solution vector"""
             start, end = self.mathematical_model.state_vector_segments[var]
             return np.array(solution["x"][start:end]).reshape(self.horizon)
 
@@ -129,19 +127,15 @@ class CentralController:
                 p_battery = get_solution_vals(f"p_bat_at_{ems_config.sys_id}")
 
             if ems_config.hp:
-                p_heatpump = get_solution_vals(f"p_heatpump_at_"
-                                               f"{ems_config.sys_id}")
+                p_heatpump = get_solution_vals(f"p_heatpump_at_" f"{ems_config.sys_id}")
 
             if ems_config.ev_charger:
                 p_ev = get_solution_vals(f"p_ev_at_{ems_config.sys_id}")
 
             schedule = type_defs.Schedule(
-                p_grid=p_grid,
-                p_bat=p_battery,
-                p_hp=p_heatpump,
-                p_ev=p_ev)
+                p_grid=p_grid, p_bat=p_battery, p_hp=p_heatpump, p_ev=p_ev
+            )
 
             schedules[ems_config.sys_id] = schedule
 
         return schedules
-

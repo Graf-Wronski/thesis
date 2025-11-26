@@ -8,6 +8,7 @@ from grecco_sim.util import type_defs
 
 class PV(model_base.Model):
     """Class for plain PV system."""
+
     def __init__(
         self,
         sys_id: str,
@@ -23,8 +24,10 @@ class PV(model_base.Model):
         """
         super().__init__(sys_id, horizon, dt_h)
 
-        assert len(ts_in) == self.horizon, f"Length of given time series ({len(ts_in)})" \
-                                           f" does not match horizon length ({self.horizon})"
+        assert len(ts_in) == self.horizon, (
+            f"Length of given time series ({len(ts_in)})"
+            f" does not match horizon length ({self.horizon})"
+        )
         self.pvs = ts_in[f"{sys_id}_p_ac"].values
 
     def apply_control(self, control):
@@ -34,19 +37,26 @@ class PV(model_base.Model):
         return {"pv_generation": self.pvs[self.k]}
 
     def get_output(self):
-        return {
-            "p_ac": self.pvs
-        }
+        return {"p_ac": self.pvs}
 
 
 class Load(model_base.Model):
-    def __init__(self, sys_id: str, horizon: int, dt_h: float, params: type_defs.SysPars, ts_in: pd.DataFrame):
+    def __init__(
+        self,
+        sys_id: str,
+        horizon: int,
+        dt_h: float,
+        params: type_defs.SysPars,
+        ts_in: pd.DataFrame,
+    ):
         super().__init__(sys_id, horizon, dt_h)
 
-        assert len(ts_in) == self.horizon, f"Length of given time series ({len(ts_in)})" \
-                                           f" does not match horizon length ({self.horizon})"
+        assert len(ts_in) == self.horizon, (
+            f"Length of given time series ({len(ts_in)})"
+            f" does not match horizon length ({self.horizon})"
+        )
         self.load = ts_in[f"{sys_id}_p_load"].values
-        assert (self.load >= 0.).all(), "Sign convention is load >! 0"
+        assert (self.load >= 0.0).all(), "Sign convention is load >! 0"
 
     def apply_control(self, control):
         self.k += 1
@@ -55,9 +65,7 @@ class Load(model_base.Model):
         return {"load_power": self.load[self.k]}
 
     def get_output(self):
-        return {
-            "p_load": self.load
-        }
+        return {"p_load": self.load}
 
 
 class Household(model_base.Model):
@@ -68,7 +76,14 @@ class Household(model_base.Model):
 
     """
 
-    def __init__(self, sys_id: str, horizon: int, dt_h: float, params: type_defs.SysPars, ts_in: pd.DataFrame):
+    def __init__(
+        self,
+        sys_id: str,
+        horizon: int,
+        dt_h: float,
+        params: type_defs.SysPars,
+        ts_in: pd.DataFrame,  # Track this one!! TODO
+    ):
         super().__init__(sys_id, horizon, dt_h)
         # print(params)
 
@@ -104,7 +119,9 @@ class Household(model_base.Model):
                     ),
                 }
                 if f"{sys_id}_pv" in ts_in:
-                    self.subsystems[f"{sys_id}_pv_p_ac"] = PV(f"{sys_id}_pv", horizon, dt_h, params, ts_in),
+                    self.subsystems[f"{sys_id}_pv_p_ac"] = (
+                        PV(f"{sys_id}_pv", horizon, dt_h, params, ts_in),
+                    )
 
         self.c_sup = params.c_sup
         self.c_feed = params.c_feed
@@ -120,8 +137,8 @@ class Household(model_base.Model):
             ret.update(sub.get_state())
         return ret
 
-    def get_grid_power_at(self, k:int):
-        grid = 0.
+    def get_grid_power_at(self, k: int):
+        grid = 0.0
         grid += self.subsystems["load"].load[k]
         if "pv" in self.subsystems:
             grid -= self.subsystems["pv"].pvs[k]
@@ -134,9 +151,7 @@ class Household(model_base.Model):
 
     def get_output(self):
 
-        subs = {
-            sub: self.subsystems[sub].get_output() for sub in self.subsystems
-        }
+        subs = {sub: self.subsystems[sub].get_output() for sub in self.subsystems}
 
         grid = np.zeros(self.horizon)
 
@@ -154,11 +169,11 @@ class Household(model_base.Model):
         if "hp" in subs:
             grid += subs["hp"]["p_in"]
 
-        res = {
+        res = {  # Is this a time series?
             "grid": grid,
-            "c_supp": np.ones(grid.shape) * self.c_sup,
+            "c_supp": np.ones(grid.shape) * self.c_sup,  # TODO time series here?
             "c_feed": np.ones(grid.shape) * self.c_feed,
-            **subs
+            **subs,
         }
 
         return res

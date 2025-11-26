@@ -11,15 +11,14 @@ from grecco_sim.util.console import suppress_stdout
 from grecco_sim.util.type_defs import Schedule
 
 
-
 class MultiUnitController:
     def __init__(
-            self,
-            sim_config: configs.SimulationConfiguration,
-            ems_config: configs.EMSConfiguration,
-            timeseries: pd.DataFrame):
-
-        """ Control (potentially) multiple units of different types. """
+        self,
+        sim_config: configs.SimulationConfiguration,
+        ems_config: configs.EMSConfiguration,
+        timeseries: pd.DataFrame,
+    ):
+        """Control (potentially) multiple units of different types."""
 
         self.now = 0
         self.dth = sim_config.dt_h
@@ -39,14 +38,14 @@ class MultiUnitController:
                 ems_config=self.sys_config,
                 opt_pars=self.opt_pars,
                 market_config=self.market_config,
-                now=self.now)
+                now=self.now,
+            )
 
         p = self.mathematical_model.problem
 
         # Usage:
         with suppress_stdout():
             self.solver = build.solver(self.opt_pars, p)
-
 
     def step(self):
         # ToDo: step is required for charging processes. A clean solution
@@ -55,12 +54,12 @@ class MultiUnitController:
         self.mathematical_model.step()
 
     def get_schedule(
-            self,
-            signal: signals.Signal,
-            forecast: forecaster.NodeForecast,
-            state: dict[str, Any]) -> type_defs.Schedule:
-
-        """ Determine planed power consumption as sum over controlled units.
+        self,
+        signal: signals.Signal,
+        forecast: forecaster.NodeForecast,
+        state: dict[str, Any],
+    ) -> type_defs.Schedule:
+        """Determine planed power consumption as sum over controlled units.
 
         Args:
             state: State of the underlying households physical system.
@@ -75,12 +74,13 @@ class MultiUnitController:
         # Update mathematical model if signal is too short.
         if len(signal) < self.opt_pars.horizon:
             self.mathematical_model = LocalOptimizationProblem(
-            horizon=len(signal),
-            sys_id=self.sys_id,
-            ems_config=self.sys_config,
-            opt_pars=self.opt_pars,
-            market_config=self.market_config,
-            now=self.now)
+                horizon=len(signal),
+                sys_id=self.sys_id,
+                ems_config=self.sys_config,
+                opt_pars=self.opt_pars,
+                market_config=self.market_config,
+                now=self.now,
+            )
 
         p = self.mathematical_model.problem
         with suppress_stdout():
@@ -112,13 +112,15 @@ class MultiUnitController:
                 now=self.now,
                 horizon=len(signal),
                 config=self.sys_config.ev_charger,
-                request_list=self.sys_config.ev_requests)
+                request_list=self.sys_config.ev_requests,
+            )
 
             p[f"ev_cum_upper_limit_at_{self.sys_id}"] = upper_lims
             p[f"ev_cum_lower_limit_at_{self.sys_id}"] = lower_lims
 
-        p = casadi.vertcat(*[p[param_name] for param_name in
-                            self.mathematical_model.parameters])
+        p = casadi.vertcat(
+            *[p[param_name] for param_name in self.mathematical_model.parameters]
+        )
 
         x_lb, x_ub = self.mathematical_model.state_bounds
         g_lb, g_ub = self.mathematical_model.constraint_bounds
@@ -129,29 +131,30 @@ class MultiUnitController:
         p_grid, p_battery, p_heatpump, p_ev = None, None, None, None
 
         start, end = self.mathematical_model.state_vector_segments[
-            f"p_grid_at_{self.sys_id}"]
+            f"p_grid_at_{self.sys_id}"
+        ]
         p_grid = np.array(solution["x"][start:end]).reshape(len(signal))
 
         if self.sys_config.bat:
             start, end = self.mathematical_model.state_vector_segments[
-                f"p_bat_at_{self.sys_id}"]
+                f"p_bat_at_{self.sys_id}"
+            ]
             p_battery = np.array(solution["x"][start:end]).reshape(len(signal))
 
         if self.sys_config.hp:
             start, end = self.mathematical_model.state_vector_segments[
-                f"p_heatpump_at_{self.sys_id}"]
+                f"p_heatpump_at_{self.sys_id}"
+            ]
             p_heatpump = np.array(solution["x"][start:end]).reshape(len(signal))
 
         if self.sys_config.ev_charger:
             start, end = self.mathematical_model.state_vector_segments[
-                f"p_ev_at_{self.sys_id}"]
-            p_ev = np.array(solution["x"][start:end]).reshape(
-                len(signal))
+                f"p_ev_at_{self.sys_id}"
+            ]
+            p_ev = np.array(solution["x"][start:end]).reshape(len(signal))
 
         schedule = type_defs.Schedule(
-            p_grid=p_grid,
-            p_bat=p_battery,
-            p_hp=p_heatpump,
-            p_ev=p_ev)
+            p_grid=p_grid, p_bat=p_battery, p_hp=p_heatpump, p_ev=p_ev
+        )
 
         return schedule

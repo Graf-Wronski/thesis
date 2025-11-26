@@ -4,6 +4,9 @@ import os
 from pathlib import Path
 from typing import Optional, Literal
 import warnings
+import numpy as np
+from numpy import floating, dtype
+from typing import Any
 
 from grecco_sim.graph.utils.format import Format
 import pandas as pd
@@ -11,50 +14,97 @@ import pandas as pd
 
 @dataclasses.dataclass
 class MarketConfiguration:
-    c_supply: float = 0.66  # Costs associated with consuming energy (€/kWh).
+    """Configuration of market parameters."""
+
+    # energy_price_path: Optional[Path]
+
+    # is_energy_price_static: bool  # True: "conventional", False: dynamic prices
+    c_supply: np.ndarray[Any, dtype[floating[Any]]] | float = 0.66
     c_feed_in: float = 0.33  # Reward associated with generating energy (
     # €/kWh).
-    max_market_iterations: int = 1 # Limits exchange between units and
+    max_market_iterations: int = 1  # Limits exchange between units and
     # coordinator.
+
+    # def __post_init__(self):
+    #     if self.is_energy_price_static is False:
+    #         file_path = self.energy_price_path
+    #         if not file_path or not Path(file_path).exists():
+    #             raise FileNotFoundError(
+    #                 "Energy price file not found. Please provide a valid path "
+    #             )
+    #         prices = pd.read_csv(file_path)
+
+    #         prices.columns = prices.columns.str.strip()
+    #         prices["start_time"] = prices["MTU (CET/CEST)"].str.split(" - ").str[0]
+    #         prices["start_time"] = pd.to_datetime(
+    #             prices["MTU (CET/CEST)"]
+    #             .str.split(" - ")
+    #             .str[0]
+    #             .str.split(" \(")
+    #             .str[0],
+    #             format="%d/%m/%Y %H:%M:%S",
+    #         )
+
+    #         # get the sequence number (1 or 2)
+    #         prices["Sequence"] = prices["Sequence"].str.extract(r"(\d+)").astype(int)
+
+    #         prices = prices.drop_duplicates(subset=["start_time", "Sequence"])
+    #         prices = prices.pivot(
+    #             index="start_time",
+    #             columns="Sequence",
+    #             values="Day-ahead Price (EUR/MWh)",
+    #         )
+    #         prices.columns = [f"sequence_{c}" for c in prices.columns]
+
+    #         # prices = prices.sort_index().asfreq("15min").tz_localize("UTC")
+    #         self.c_supply = (
+    #             prices["sequence_1"]
+    #             .reindex(self.index, method="ffill")
+    #             .to_numpy(dtype=float)
+    #             / 100  # self.MWH_TO_KWH
+    #         )
+    #     else:
+    #         self.c_supply = 0.66
 
     def as_dict(self):
         as_dict = dict()
-        as_dict['c_supply'] = self.c_supply
-        as_dict['c_feed_in'] = self.c_feed_in
-        as_dict['max_market_iterations'] = self.max_market_iterations
+        as_dict["c_supply"] = self.c_supply
+        as_dict["c_feed_in"] = self.c_feed_in
+        as_dict["max_market_iterations"] = self.max_market_iterations
         return as_dict
+
 
 @dataclasses.dataclass
 class OptimizerConfiguration:
-    """ Define solver and respective parameters. """
+    """Define solver and respective parameters."""
 
     solver_name: str  # Results of different solvers can vary substantially.
     horizon: int  # Number of time steps the optimizer regards.
     forecast_type: str = "perfect"
 
     # First order.
-    alpha: float = 1.
+    alpha: float = 1.0
 
     # Penalty for constraint violations: Only affects relaxed constraints.
-    slack_penalty_thermal: float = 500.
-    slack_penalty_ev: float = 500.
+    slack_penalty_thermal: float = 500.0
+    slack_penalty_ev: float = 500.0
 
     # Gurobi.
     gurobi_version: str = "110"  # Tested on gurobi version 110.
 
     def as_dict(self):
         as_dict = dict()
-        as_dict['solver_name'] = self.solver_name
-        as_dict['horizon'] = self.horizon
-        as_dict['forecast_type'] = self.forecast_type
-        as_dict['alpha'] = self.alpha
-        as_dict['rho'] = self.rho
-        as_dict['mu'] = self.mu
-        as_dict['slack_penalty_thermal'] = self.slack_penalty_thermal
+        as_dict["solver_name"] = self.solver_name
+        as_dict["horizon"] = self.horizon
+        as_dict["forecast_type"] = self.forecast_type
+        as_dict["alpha"] = self.alpha
+        as_dict["rho"] = self.rho
+        as_dict["mu"] = self.mu
+        as_dict["slack_penalty_thermal"] = self.slack_penalty_thermal
         return as_dict
 
     def __post_init__(self):
-        """ Set solver specific variables. """
+        """Set solver specific variables."""
 
         if self.solver_name == "gurobi":
             license_path = os.getenv("GUROBI_LICENSE_FILE")
@@ -64,7 +114,8 @@ class OptimizerConfiguration:
                     "Please set GUROBI_LICENSE_FILE. In conda you can do so"
                     "using\n conda env config vars set "
                     "GUROBI_LICENSE_FILE=<path/to/gurobi.lic>. \n "
-                    "Reactivate your environment afterwards.")
+                    "Reactivate your environment afterwards."
+                )
                 raise ValueError(msg)
 
             if not Path(license_path).exists():
@@ -76,23 +127,28 @@ class OptimizerConfiguration:
 
 @dataclasses.dataclass
 class SimulationConfiguration:
-    """ Parameterization of a simulation."""
+    """Parameterization of a simulation."""
 
     grid_data_path: Path
     weather_data_path: Path
 
     # Configuration for local optimizers.
     optimizer_config: OptimizerConfiguration
-    coordinator_name: Literal["uncoordinated", "transformer_fee",
-                              "feeder_fee", "central"]
+    coordinator_name: Literal[
+        "uncoordinated", "transformer_fee", "feeder_fee", "central"
+    ]
     sim_tag: str  # unique identifier of simulation
 
     # Market configuration has information about supply and feed-in tariffs.
     market_config: MarketConfiguration
 
+    is_energy_price_static: bool  # True: "conventional", False: dynamic prices
+    energy_price_path: Optional[Path]
+
     # Coordinator temporal resolution.
-    temporal_resolution: Literal["cubic", "None", "cubic restricted",
-                                 "gaussian", "step"] = "cubic"
+    temporal_resolution: Literal[
+        "cubic", "None", "cubic restricted", "gaussian", "step"
+    ] = "cubic"
 
     # Path to store simulation output (e.g. time series, analysis results)
     output_dir: Path = Path(__file__).parents[2] / "results" / "default"
@@ -125,7 +181,6 @@ class SimulationConfiguration:
     charging_request_path: Path = Format().data_root / "ev" / f_name
     ev_capacity_data_path: Optional[Path] = None
 
-
     # State space for heat pumps: discrete ("on-off") or continious
     heat_pump_model: Literal["discrete", "continous"] = "discrete"
 
@@ -136,13 +191,15 @@ class SimulationConfiguration:
             self.output_file_dir = p
 
         time_index_given = self.time_index is not None
-        time_triple_given = all(x is not None for x in (self.start_time,
-                                                        self.step_size,
-                                                        self.n_time_steps))
+        time_triple_given = all(
+            x is not None for x in (self.start_time, self.step_size, self.n_time_steps)
+        )
 
-        msg = ("Specify either time_index\n"
-               "or start_time, step_size and n_time_steps.\n"
-               "Do not specify both.")
+        msg = (
+            "Specify either time_index\n"
+            "or start_time, step_size and n_time_steps.\n"
+            "Do not specify both."
+        )
 
         # Enforce mutual exclusivity
         if time_index_given and time_triple_given:
@@ -152,9 +209,8 @@ class SimulationConfiguration:
 
         if time_triple_given:
             self.time_index = pd.date_range(
-                start=self.start_time,
-                freq=self.step_size,
-                periods=self.n_time_steps)
+                start=self.start_time, freq=self.step_size, periods=self.n_time_steps
+            )
 
         if time_index_given:
             time_steps = self.time_index.to_series().diff().dropna()
@@ -167,7 +223,7 @@ class SimulationConfiguration:
             if step_size != pd.Timedelta(minutes=15):
                 raise NotImplementedError
 
-            self.start_time = self.time_index[0]
+            self.start_time = self.time_index[0]  # type: ignore
             self.step_size = step_size
             self.n_time_steps = len(self.time_index)
 
@@ -177,22 +233,23 @@ class SimulationConfiguration:
                 raise ValueError(msg)
         elif self.temporal_resolution != "None":
             if self.coordinator_name in ["central", "uncoordinated"]:
-                msg = (f"Coordinator {self.coordinator_name} ignores temporal "
-                       f"resolution {self.temporal_resolution}.")
+                msg = (
+                    f"Coordinator {self.coordinator_name} ignores temporal "
+                    f"resolution {self.temporal_resolution}."
+                )
                 warnings.warn(msg)
 
     @property
     def dt_h(self) -> float:
-        """ Simulation time step in hours as float. """
-        return self.step_size.total_seconds() / 3600.
-
+        """Simulation time step in hours as float."""
+        return self.step_size.total_seconds() / 3600.0
 
     @property
     def plot_dir(self) -> Path:
         return self.output_dir / "plots"
 
     def as_dict(self) -> dict:
-        """ Configuration as dictionary for plotting. """
+        """Configuration as dictionary for plotting."""
 
         as_dict = dict()
         as_dict["sim_tag"] = self.sim_tag
@@ -222,6 +279,7 @@ class SimulationConfiguration:
 @dataclasses.dataclass
 class UnitConfiguration:
     """Base data class for system description"""
+
     name: str
 
     # Supply and feed in price
@@ -239,12 +297,14 @@ class UnitConfiguration:
 @dataclasses.dataclass
 class BaseloadConfig(UnitConfiguration):
     """Parameter class describing a plain household"""
+
     unit_type: str = "load"
 
 
 @dataclasses.dataclass
 class PVConfig(UnitConfiguration):
     """Parameter class describing a PV unit."""
+
     unit_type: str = "pv"
 
 
@@ -253,7 +313,7 @@ class StorageConfig(UnitConfiguration):
     p_inv: float  # DC limit of inverter.
 
     eff: float = 0.95  # Efficiency of battery inverter (charging/discharging).
-    capacity: float = 5.  # Battery capacity in kWh.
+    capacity: float = 5.0  # Battery capacity in kWh.
 
     init_soc: float = 0.1
 
@@ -274,11 +334,14 @@ class StorageConfig(UnitConfiguration):
 @dataclasses.dataclass
 class HeatPumpConfig(UnitConfiguration):
     """Parameter class describing a Heat Pump system."""
+
     initial_temp: float = 20.0
 
     # Household parameters          # TODO: Validate data.  This has to be variable among type of households
     thermal_mass: float = 16500  # in kJ/ K
-    heat_rate: float = 0.05  # In kW/K  # coefficient determining heat transfer through building hull
+    heat_rate: float = (
+        0.05  # In kW/K  # coefficient determining heat transfer through building hull
+    )
     absorbance: float = 0.1  # Percentage of absorbance of solar irradiation
     irradiance_area: float = 10.0  # in m2
 
@@ -302,17 +365,18 @@ class HeatPumpConfig(UnitConfiguration):
 
 @dataclasses.dataclass
 class ChargerAndEVConfig(UnitConfiguration):
-    """ Since we match charger to vehicle 1:1, ChargerConfig has EV data. """
+    """Since we match charger to vehicle 1:1, ChargerConfig has EV data."""
+
     ev_name: str
 
     # Battery parameters
     capacity: float
-    p_inv: float = 11.0 # kW
+    p_inv: float = 11.0  # kW
     eff: float = 0.93  # eff from SynPro Data
 
     # Bounds for state of charge
     x_lb: float = 0.1
-    x_ub: float = 1.
+    x_ub: float = 1.0
 
     unit_type: str = "ev"
 
@@ -320,24 +384,27 @@ class ChargerAndEVConfig(UnitConfiguration):
     def p_lim_effective(self) -> float:
         return self.eff * self.p_inv
 
+
 @dataclasses.dataclass
 class ChargingRequest:
-    """ Request capacity between two time steps. """
+    """Request capacity between two time steps."""
+
     start_step: int
     end_step: int
     capacity: float
 
     def active_at(self, step: int):
-        """ Check if a request is active at a given time step. """
+        """Check if a request is active at a given time step."""
         return (self.start_step <= step) and (step <= self.end_step)
 
     def __post_init__(self):
         if self.end_step < self.start_step:
             raise ValueError("End step must be later than start step.")
 
+
 @dataclasses.dataclass
 class EMSConfiguration:
-    """ Unit configurations associated with an EMS. """
+    """Unit configurations associated with an EMS."""
 
     sys_id: str
     horizon: int
@@ -354,14 +421,12 @@ class EMSConfiguration:
 
     @property
     def is_inflexible(self):
-        """ EMS is inflexible if it has no flexible unit configuration. """
-        return (self.bat is None and
-                self.hp is None and
-                self.ev_charger is None)
+        """EMS is inflexible if it has no flexible unit configuration."""
+        return self.bat is None and self.hp is None and self.ev_charger is None
 
     def __post_init__(self):
         if not ((self.ev_charger is None) == (self.ev_requests is None)):
-            msg = (f"EV Charger {self.ev_charger} and f{self.ev_requests}"
-                   f"inconsistent.")
+            msg = (
+                f"EV Charger {self.ev_charger} and f{self.ev_requests}" f"inconsistent."
+            )
             raise ValueError(msg)
-

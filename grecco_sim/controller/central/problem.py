@@ -6,11 +6,13 @@ from grecco_sim.util import configs
 
 class CentralOptimizationModel(casadi_model.CasadiModel):
     def __init__(
-            self,
-            horizon: int,
-            opt_pars: configs.OptimizerConfiguration,
-            ems_configs: dict[str, configs.EMSConfiguration],
-            now: int):
+        self,
+        horizon: int,
+        opt_pars: configs.OptimizerConfiguration,
+        # market_config: configs.MarketConfiguration,
+        ems_configs: dict[str, configs.EMSConfiguration],
+        now: int,
+    ):
 
         super().__init__(horizon, opt_pars, ems_configs, now)
 
@@ -28,13 +30,14 @@ class CentralOptimizationModel(casadi_model.CasadiModel):
 
 class LocalOptimizationProblem(casadi_model.CasadiModel):
     def __init__(
-            self,
-            horizon: int,
-            opt_pars: configs.OptimizerConfiguration,
-            sys_id: str,
-            ems_config: configs.EMSConfiguration,
-            market_config: configs.MarketConfiguration,
-            now: int):
+        self,
+        horizon: int,
+        opt_pars: configs.OptimizerConfiguration,
+        sys_id: str,
+        ems_config: configs.EMSConfiguration,
+        market_config: configs.MarketConfiguration,
+        now: int,
+    ):
 
         self.sys_id = sys_id
         self.config = ems_config
@@ -48,9 +51,13 @@ class LocalOptimizationProblem(casadi_model.CasadiModel):
         c_supply = self.market_config.c_supply
         c_feed_in = self.market_config.c_feed_in
 
+        consumption = self.consumption[self.sys_id]
+        print("  (debug) consumption shape:", consumption.shape)
+
         self.objective += c_supply * casadi.sum1(self.consumption[self.sys_id])
         self.objective -= c_feed_in * casadi.sum1(self.generation[self.sys_id])
 
+        # Congestion pricing
         var_name = f"congestion_penalty_at_{self.sys_id}"
         lam_congestion = self.build_parameter(var_name, self.horizon)
 
@@ -65,5 +72,9 @@ class LocalOptimizationProblem(casadi_model.CasadiModel):
         if self.config.ev_charger:
             p_ev = self.p_ev[self.sys_id]
             self.objective += casadi.dot(lam_congestion, p_ev)
+
+        obj = self.objective
+        print("  (debug) objective SX:", obj)
+        print("  (debug) obj.size1, size2:", obj.size1(), obj.size2())
 
         return self.objective
